@@ -1,7 +1,7 @@
 @echo off
 title Hash API
 REM Change directory to the project path
-cd /d "C:\Users\Administrator\Documents\GitHub\okal-gateway"
+cd /d "C:\Users\Administrator\Documents\GitHub\okal-hash-api"
 
 REM Start the Node.js application with PM2
 pm2 start hashAPI.js

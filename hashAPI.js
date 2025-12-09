@@ -24,10 +24,7 @@ function loadEncrypted(defVal) {
   let template = fs.readFileSync(TEMPLATE_FILE, "utf8");
 
   const today = new Date();
-  const formattedDate = today
-    .toLocaleDateString("en-GB")
-    .split("/")
-    .join("/");
+  const formattedDate = today.toLocaleDateString("en-US");
 
   let finalTemplate = template.replace("{{ID}}", defVal);
   finalTemplate = finalTemplate.replace("{{DATE}}", formattedDate);

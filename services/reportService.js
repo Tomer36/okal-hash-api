@@ -11,14 +11,29 @@ const COMPANY = config.get("configs.COMPANY");
 const NET_PASSPORT_ID = config.get("configs.NET_PASSPORT_ID");
 
 /* -------------------- HELPERS -------------------- */
-function applyTemplate(template, variables) {
-  let result = template;
+function loadReportTemplate(filePath, input) {
+  const raw = fs.readFileSync(filePath, "utf8");
+  const report = JSON.parse(raw);
 
-  for (const [key, value] of Object.entries(variables)) {
-    result = result.replaceAll(`{{${key}}}`, value);
+  if (!Array.isArray(report.params_data)) {
+    return report;
   }
 
-  return result;
+  const today = new Date().toLocaleDateString("en-US");
+
+  report.params_data = report.params_data.map((param) => {
+    if (param?.type === "txt" && param?.opName === "שווה") {
+      return { ...param, defVal: String(input.ID) };
+    }
+
+    if (param?.type === "date") {
+      return { ...param, defVal: today };
+    }
+
+    return param;
+  });
+
+  return report;
 }
 
 function createSignature(data) {
@@ -33,17 +48,11 @@ export async function getReport(type, payload) {
     throw new Error(`Report '${type}' is not supported`);
   }
 
-  const template = fs.readFileSync(templatePath, "utf8");
-
-  // Base variables (always available)
-  const variables = {
+  const reportTemplate = loadReportTemplate(templatePath, {
     ID: payload.clientNumber,
-    DATE: new Date().toLocaleDateString("en-US"),
-    ...payload, // allow custom fields (FROM_DATE, TO_DATE, etc.)
-  };
-
-  const encryptedData = applyTemplate(template, variables);
-  const signature = createSignature(encryptedData);
+  });
+  const pluginData = JSON.stringify(reportTemplate);
+  const signature = createSignature(pluginData);
 
   const requestPayload = {
     station: STATION,
@@ -51,7 +60,7 @@ export async function getReport(type, payload) {
     company: COMPANY,
     message: {
       netPassportID: NET_PASSPORT_ID,
-      pluginData: encryptedData,
+      pluginData,
     },
     signature,
   };

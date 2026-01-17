@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>צפייה בדוחות</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: #f6f1ea;
+        color: #222;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 32px auto;
+        padding: 24px;
+        background: #fffaf4;
+        border: 1px solid #eadfce;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+      }
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        font-weight: 600;
+      }
+      input,
+      select,
+      button,
+      textarea {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 1px solid #d8cdbb;
+        border-radius: 8px;
+        background: #fff;
+        box-sizing: border-box;
+      }
+      button {
+        margin-top: 16px;
+        background: #0057b7;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .hint {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #6a5b48;
+      }
+      .status {
+        margin-top: 12px;
+        color: #7a5b2f;
+        min-height: 20px;
+      }
+      pre {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f2efe9;
+        border: 1px solid #e2d7c5;
+        border-radius: 8px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>צפייה בדוחות</h1>
+
+      <label for="baseUrl">כתובת API</label>
+      <input id="baseUrl" type="text" value="http://localhost:6001" />
+
+      <label for="clientNumber">מספר לקוח</label>
+      <input id="clientNumber" type="text" placeholder="לדוגמה: 12345" />
+      <div class="hint" id="clientHint"></div>
+
+      <label for="reportType">בחר דוח</label>
+      <select id="reportType"></select>
+
+      <button id="runBtn">הצג דוח</button>
+      <div class="status" id="status"></div>
+      <pre id="output">{}</pre>
+    </div>
+
+    <script>
+      const reportCatalog = [
+        { id: "174", name: "API פקודות יומן", needsClient: false },
+        { id: "175", name: "API דוח אובליגו לקוחות תאמר", needsClient: false },
+        { id: "176", name: "אינדקס אנשי קשר ולקוחות", needsClient: false },
+        { id: "177", name: "API תעודות משלוח פתוחות לקוחות", needsClient: true },
+        { id: "180", name: "API כרטסת", needsClient: true },
+        { id: "181", name: "API דוח אובליגו לקוח בודד תאמר", needsClient: true },
+        { id: "182", name: "דוח חשבוניות יומי עם יתרת חשבון מרואן", needsClient: false },
+        {
+          id: "183",
+          name: 'דו"ח תעודות לא מתואמת-פתוחות לקוח בודד',
+          needsClient: true,
+        },
+        { id: "184", name: "API אינדקס לקוחות לקוח בודד", needsClient: true },
+        {
+          id: "185",
+          name: "אינדקס אנשי קשר ולקוחות לקוח בודד",
+          needsClient: true,
+        },
+        { id: "186", name: "API רשימת דוחות תאמר", needsClient: false },
+        { id: "187", name: "API תנועות שיקים דחויים", needsClient: true },
+        { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
+        { id: "189", name: "הזמנות פתוחות וסגורות לפי פריטים", needsClient: true },
+        { id: "198", name: "API אינדקס לקוחות", needsClient: false },
+        { id: "200", name: "העתק חשבונית לפי מס חשבונית", needsClient: false },
+        { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
+      ];
+
+      const baseUrlInput = document.getElementById("baseUrl");
+      const clientNumberInput = document.getElementById("clientNumber");
+      const clientHint = document.getElementById("clientHint");
+      const reportTypeSelect = document.getElementById("reportType");
+      const runBtn = document.getElementById("runBtn");
+      const statusEl = document.getElementById("status");
+      const outputEl = document.getElementById("output");
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      function renderReportTypes() {
+        reportTypeSelect.innerHTML = "";
+        reportCatalog.forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.id;
+          option.textContent = `${item.id} - ${item.name}`;
+          reportTypeSelect.appendChild(option);
+        });
+      }
+
+      function updateClientHint(reportId) {
+        const report = reportCatalog.find((item) => item.id === reportId);
+        if (!report) {
+          clientHint.textContent = "יתכן שצריך מספר לקוח לדוח זה.";
+          return;
+        }
+        clientHint.textContent = report.needsClient
+          ? "דוח זה דורש מספר לקוח."
+          : "דוח זה לא דורש מספר לקוח.";
+      }
+
+      async function runReport() {
+        const baseUrl = baseUrlInput.value.trim().replace(/\/+$/, "");
+        const clientNumber = clientNumberInput.value.trim();
+        const reportType = reportTypeSelect.value.trim();
+        const report = reportCatalog.find((item) => item.id === reportType);
+
+        if (!baseUrl) {
+          setStatus("אנא הזן כתובת API.");
+          return;
+        }
+        if (!reportType) {
+          setStatus("אנא הזן שם דוח.");
+          return;
+        }
+        if (report?.needsClient && !clientNumber) {
+          setStatus("אנא הזן מספר לקוח.");
+          return;
+        }
+
+        setStatus("טוען...");
+        outputEl.textContent = "{}";
+        runBtn.disabled = true;
+
+        try {
+          const payload = {};
+          if (clientNumber) {
+            payload.clientNumber = clientNumber;
+          }
+
+          const response = await fetch(`${baseUrl}/reports/${reportType}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data?.error || "שגיאת שרת");
+          }
+
+          outputEl.textContent = JSON.stringify(data, null, 2);
+          setStatus("הדוח נטען בהצלחה.");
+        } catch (err) {
+          setStatus(`שגיאה: ${err.message}`);
+        } finally {
+          runBtn.disabled = false;
+        }
+      }
+
+      renderReportTypes();
+      updateClientHint(reportTypeSelect.value);
+      reportTypeSelect.addEventListener("change", (event) => {
+        updateClientHint(event.target.value.trim());
+      });
+      runBtn.addEventListener("click", runReport);
+    </script>
+  </body>
+</html>

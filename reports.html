@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>צפייה בדוחות</title>
+    <title>בדוחות</title>
     <style>
       :root {
         color-scheme: light;
@@ -83,12 +83,14 @@
       <label for="baseUrl">כתובת API</label>
       <input id="baseUrl" type="text" value="http://localhost:6001" />
 
-      <label for="clientNumber">מספר לקוח</label>
-      <input id="clientNumber" type="text" placeholder="לדוגמה: 12345" />
-      <div class="hint" id="clientHint"></div>
-
       <label for="reportType">בחר דוח</label>
       <select id="reportType"></select>
+
+      <div id="clientNumberGroup">
+        <label for="clientNumber">מספר לקוח</label>
+        <input id="clientNumber" type="text" placeholder="לדוגמה: 12345" />
+        <div class="hint" id="clientHint"></div>
+      </div>
 
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
@@ -110,11 +112,7 @@
           needsClient: true,
         },
         { id: "184", name: "API אינדקס לקוחות לקוח בודד", needsClient: true },
-        {
-          id: "185",
-          name: "אינדקס אנשי קשר ולקוחות לקוח בודד",
-          needsClient: true,
-        },
+        { id: "185", name: "אינדקס אנשי קשר ולקוחות לקוח בודד", needsClient: true },
         { id: "186", name: "API רשימת דוחות תאמר", needsClient: false },
         { id: "187", name: "API תנועות שיקים דחויים", needsClient: true },
         { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
@@ -127,6 +125,7 @@
       const baseUrlInput = document.getElementById("baseUrl");
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
+      const clientGroup = document.getElementById("clientNumberGroup");
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
@@ -146,15 +145,21 @@
         });
       }
 
-      function updateClientHint(reportId) {
+      function updateClientSection(reportId) {
         const report = reportCatalog.find((item) => item.id === reportId);
         if (!report) {
+          clientGroup.style.display = "";
           clientHint.textContent = "יתכן שצריך מספר לקוח לדוח זה.";
           return;
         }
-        clientHint.textContent = report.needsClient
-          ? "דוח זה דורש מספר לקוח."
-          : "דוח זה לא דורש מספר לקוח.";
+        if (report.needsClient) {
+          clientGroup.style.display = "";
+          clientHint.textContent = "דוח זה דורש מספר לקוח.";
+        } else {
+          clientGroup.style.display = "none";
+          clientNumberInput.value = "";
+          clientHint.textContent = "";
+        }
       }
 
       async function runReport() {
@@ -168,7 +173,7 @@
           return;
         }
         if (!reportType) {
-          setStatus("אנא הזן שם דוח.");
+          setStatus("אנא בחר דוח.");
           return;
         }
         if (report?.needsClient && !clientNumber) {
@@ -207,9 +212,9 @@
       }
 
       renderReportTypes();
-      updateClientHint(reportTypeSelect.value);
+      updateClientSection(reportTypeSelect.value);
       reportTypeSelect.addEventListener("change", (event) => {
-        updateClientHint(event.target.value.trim());
+        updateClientSection(event.target.value.trim());
       });
       runBtn.addEventListener("click", runReport);
     </script>

@@ -6,10 +6,6 @@ const router = express.Router();
 router.post("/:type", async (req, res) => {
   const { type } = req.params;
 
-  if (!req.body.clientNumber) {
-    return res.status(400).json({ error: "clientNumber is required" });
-  }
-
   try {
     const data = await getReport(type, req.body);
     res.json(data);

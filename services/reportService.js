@@ -11,9 +11,20 @@ const COMPANY = config.get("configs.COMPANY");
 const NET_PASSPORT_ID = config.get("configs.NET_PASSPORT_ID");
 
 /* -------------------- HELPERS -------------------- */
+function parseReportFile(filePath) {
+  const raw = fs.readFileSync(filePath, "utf8").trim();
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return JSON.parse(raw);
+  }
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
+const CLIENT_OP_NAME = "שווה";
+
 function loadReportTemplate(filePath, input) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  const report = JSON.parse(raw);
+  const report = parseReportFile(filePath);
 
   if (!Array.isArray(report.params_data)) {
     return report;
@@ -22,7 +33,9 @@ function loadReportTemplate(filePath, input) {
   const today = new Date().toLocaleDateString("en-US");
 
   report.params_data = report.params_data.map((param) => {
-    if (param?.type === "txt" && param?.opName === "שווה") {
+    if (
+      param?.type === "txt" && param?.opName === CLIENT_OP_NAME
+    ) {
       return { ...param, defVal: String(input.ID) };
     }
 
@@ -34,6 +47,16 @@ function loadReportTemplate(filePath, input) {
   });
 
   return report;
+}
+
+function reportNeedsClient(report) {
+  if (!Array.isArray(report?.params_data)) {
+    return false;
+  }
+
+  return report.params_data.some(
+    (param) => param?.type === "txt" && param?.opName === CLIENT_OP_NAME
+  );
 }
 
 function createSignature(data) {
@@ -48,8 +71,15 @@ export async function getReport(type, payload) {
     throw new Error(`Report '${type}' is not supported`);
   }
 
+  const reportTemplateRaw = parseReportFile(templatePath);
+  const needsClient = reportNeedsClient(reportTemplateRaw);
+
+  if (needsClient && !payload?.clientNumber) {
+    throw new Error("clientNumber is required for this report");
+  }
+
   const reportTemplate = loadReportTemplate(templatePath, {
-    ID: payload.clientNumber,
+    ID: payload?.clientNumber,
   });
   const pluginData = JSON.stringify(reportTemplate);
   const signature = createSignature(pluginData);

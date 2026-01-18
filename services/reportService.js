@@ -23,7 +23,7 @@ function parseReportFile(filePath) {
 
 const CLIENT_OP_NAME = "שווה";
 
-function loadReportTemplate(filePath, input) {
+function loadReportTemplate(filePath, input, reportType) {
   const report = parseReportFile(filePath);
 
   if (!Array.isArray(report.params_data)) {
@@ -31,6 +31,8 @@ function loadReportTemplate(filePath, input) {
   }
 
   const today = new Date().toLocaleDateString("en-US");
+  const dateFrom = input?.dateFrom || today;
+  const dateTo = input?.dateTo || today;
 
   report.params_data = report.params_data.map((param) => {
     if (
@@ -39,7 +41,22 @@ function loadReportTemplate(filePath, input) {
       return { ...param, defVal: String(input.ID) };
     }
 
+    if (
+      reportType === "200" &&
+      input?.invoiceNumber &&
+      param?.type === "long" &&
+      param?.name?.includes("מספר מסמך")
+    ) {
+      return { ...param, defVal: String(input.invoiceNumber) };
+    }
+
     if (param?.type === "date") {
+      if (param?.opOrigin === "from") {
+        return { ...param, defVal: dateFrom };
+      }
+      if (param?.opOrigin === "to") {
+        return { ...param, defVal: dateTo };
+      }
       return { ...param, defVal: today };
     }
 
@@ -78,9 +95,16 @@ export async function getReport(type, payload) {
     throw new Error("clientNumber is required for this report");
   }
 
-  const reportTemplate = loadReportTemplate(templatePath, {
+  const reportTemplate = loadReportTemplate(
+    templatePath,
+    {
     ID: payload?.clientNumber,
-  });
+    dateFrom: payload?.dateFrom,
+    dateTo: payload?.dateTo,
+    invoiceNumber: payload?.invoiceNumber,
+    },
+    type
+  );
   const pluginData = JSON.stringify(reportTemplate);
   const signature = createSignature(pluginData);
 

@@ -89,6 +89,20 @@
         <div class="hint" id="clientHint"></div>
       </div>
 
+      <div id="dateRangeGroup">
+        <label for="dateFrom">מתאריך</label>
+        <input id="dateFrom" type="date" />
+        <label for="dateTo">עד תאריך</label>
+        <input id="dateTo" type="date" />
+        <div class="hint">אופציונלי: לשימוש בדוחות עם טווח תאריכים.</div>
+      </div>
+
+      <div id="invoiceNumberGroup">
+        <label for="invoiceNumber">מספר חשבונית</label>
+        <input id="invoiceNumber" type="text" inputmode="numeric" />
+        <div class="hint">נדרש לדוח 200.</div>
+      </div>
+
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
       <pre id="output">{}</pre>
@@ -109,9 +123,7 @@
           needsClient: true,
         },
         { id: "184", name: "API אינדקס לקוחות לקוח בודד", needsClient: true },
-        { id: "185", name: "אינדקס אנשי קשר ולקוחות לקוח בודד", needsClient: true },
-        { id: "186", name: "API רשימת דוחות תאמר", needsClient: false },
-        { id: "187", name: "API תנועות שיקים דחויים", needsClient: true },
+        { id: "185", name: "אינדקס אנשי קשר ולקוחות לקוח בודד", needsClient: true },        { id: "187", name: "API תנועות שיקים דחויים", needsClient: true },
         { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
         { id: "189", name: "הזמנות פתוחות וסגורות לפי פריטים", needsClient: true },
         { id: "198", name: "API אינדקס לקוחות", needsClient: false },
@@ -119,9 +131,16 @@
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
       ];
 
+      const dateRangeReports = new Set(["175", "181", "182", "198"]);
+      const invoiceReports = new Set(["200"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
       const clientGroup = document.getElementById("clientNumberGroup");
+      const dateRangeGroup = document.getElementById("dateRangeGroup");
+      const dateFromInput = document.getElementById("dateFrom");
+      const dateToInput = document.getElementById("dateTo");
+      const invoiceNumberGroup = document.getElementById("invoiceNumberGroup");
+      const invoiceNumberInput = document.getElementById("invoiceNumber");
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
@@ -129,6 +148,17 @@
 
       function setStatus(text) {
         statusEl.textContent = text;
+      }
+
+      function formatDateForReport(value) {
+        if (!value) {
+          return "";
+        }
+        const [year, month, day] = value.split("-");
+        if (!year || !month || !day) {
+          return "";
+        }
+        return `${month}/${day}/${year}`;
       }
 
       function renderReportTypes() {
@@ -158,6 +188,27 @@
         }
       }
 
+      function updateDateRangeSection(reportId) {
+        const needsDateRange = dateRangeReports.has(reportId);
+        if (needsDateRange) {
+          dateRangeGroup.style.display = "";
+          return;
+        }
+        dateRangeGroup.style.display = "none";
+        dateFromInput.value = "";
+        dateToInput.value = "";
+      }
+
+      function updateInvoiceSection(reportId) {
+        const needsInvoice = invoiceReports.has(reportId);
+        if (needsInvoice) {
+          invoiceNumberGroup.style.display = "";
+          return;
+        }
+        invoiceNumberGroup.style.display = "none";
+        invoiceNumberInput.value = "";
+      }
+
       async function runReport() {
         const baseUrl =
           window.location.origin && window.location.origin !== "null"
@@ -175,6 +226,11 @@
           setStatus("אנא הזן מספר לקוח.");
           return;
         }
+        const invoiceNumber = invoiceNumberInput.value.trim();
+        if (invoiceReports.has(reportType) && !invoiceNumber) {
+          setStatus("Invoice number is required for this report.");
+          return;
+        }
 
         setStatus("טוען...");
         outputEl.textContent = "{}";
@@ -185,7 +241,17 @@
           if (clientNumber) {
             payload.clientNumber = clientNumber;
           }
-
+          const dateFrom = formatDateForReport(dateFromInput.value);
+          const dateTo = formatDateForReport(dateToInput.value);
+          if (dateFrom) {
+            payload.dateFrom = dateFrom;
+          }
+          if (dateTo) {
+            payload.dateTo = dateTo;
+          }
+          if (invoiceNumber) {
+            payload.invoiceNumber = invoiceNumber;
+          }
           const response = await fetch(`${baseUrl}/reports/${reportType}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -208,8 +274,13 @@
 
       renderReportTypes();
       updateClientSection(reportTypeSelect.value);
+      updateDateRangeSection(reportTypeSelect.value);
+      updateInvoiceSection(reportTypeSelect.value);
       reportTypeSelect.addEventListener("change", (event) => {
-        updateClientSection(event.target.value.trim());
+        const selectedReport = event.target.value.trim();
+        updateClientSection(selectedReport);
+        updateDateRangeSection(selectedReport);
+        updateInvoiceSection(selectedReport);
       });
       runBtn.addEventListener("click", runReport);
     </script>

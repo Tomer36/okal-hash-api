@@ -80,9 +80,6 @@
     <div class="wrap">
       <h1>צפייה בדוחות</h1>
 
-      <label for="baseUrl">כתובת API</label>
-      <input id="baseUrl" type="text" value="http://localhost:6001" />
-
       <label for="reportType">בחר דוח</label>
       <select id="reportType"></select>
 
@@ -122,7 +119,6 @@
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
       ];
 
-      const baseUrlInput = document.getElementById("baseUrl");
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
       const clientGroup = document.getElementById("clientNumberGroup");
@@ -163,15 +159,14 @@
       }
 
       async function runReport() {
-        const baseUrl = baseUrlInput.value.trim().replace(/\/+$/, "");
+        const baseUrl =
+          window.location.origin && window.location.origin !== "null"
+            ? window.location.origin
+            : "http://localhost:6001";
         const clientNumber = clientNumberInput.value.trim();
         const reportType = reportTypeSelect.value.trim();
         const report = reportCatalog.find((item) => item.id === reportType);
 
-        if (!baseUrl) {
-          setStatus("אנא הזן כתובת API.");
-          return;
-        }
         if (!reportType) {
           setStatus("אנא בחר דוח.");
           return;

@@ -80,6 +80,60 @@ function createSignature(data) {
   return crypto.createHash("md5").update(data + TOKEN).digest("hex");
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+const DECIMAL_RE = /^-?\d+\.\d+$/;
+
+function formatDateString(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+function formatNumberValue(value) {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num) || Number.isInteger(num)) {
+    return value;
+  }
+  return num.toFixed(2);
+}
+
+function normalizeReportData(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeReportData);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, val]) => [
+        key,
+        normalizeReportData(val),
+      ])
+    );
+  }
+
+  if (typeof value === "string") {
+    if (ISO_DATE_RE.test(value)) {
+      return formatDateString(value);
+    }
+    if (DECIMAL_RE.test(value)) {
+      return formatNumberValue(value);
+    }
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return formatNumberValue(value);
+  }
+
+  return value;
+}
+
 /* -------------------- MAIN SERVICE -------------------- */
 export async function getReport(type, payload) {
   const templatePath = `./reports/${type}.txt`;
@@ -129,5 +183,5 @@ export async function getReport(type, payload) {
     throw new Error("No report data found");
   }
 
-  return result;
+  return normalizeReportData(result);
 }

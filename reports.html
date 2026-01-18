@@ -95,6 +95,11 @@
         text-align: right;
         vertical-align: top;
       }
+      td.num {
+        direction: ltr;
+        text-align: right;
+        unicode-bidi: plaintext;
+      }
       th {
         background: #f6efe6;
         font-weight: 700;
@@ -194,6 +199,35 @@
         return `${month}/${day}/${year}`;
       }
 
+      const US_DATE_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+      function formatDateForDisplay(value) {
+        const match = US_DATE_RE.exec(value);
+        if (!match) {
+          return value;
+        }
+        const [, month, day, year] = match;
+        return `${day}/${month}/${year}`;
+      }
+
+      function normalizeDisplayData(value) {
+        if (Array.isArray(value)) {
+          return value.map(normalizeDisplayData);
+        }
+        if (value && typeof value === "object") {
+          return Object.fromEntries(
+            Object.entries(value).map(([key, val]) => [
+              key,
+              normalizeDisplayData(val),
+            ])
+          );
+        }
+        if (typeof value === "string") {
+          return formatDateForDisplay(value);
+        }
+        return value;
+      }
+
       function findFirstArray(value) {
         if (Array.isArray(value)) {
           return value;
@@ -244,6 +278,14 @@
           columns.forEach((col) => {
             const td = document.createElement("td");
             const value = isObjectArray ? item?.[col] : item;
+            if (
+              typeof value === "number" ||
+              (typeof value === "string" &&
+                value.trim() !== "" &&
+                !Number.isNaN(Number(value)))
+            ) {
+              td.classList.add("num");
+            }
             td.textContent =
               value === null || value === undefined ? "" : String(value);
             row.appendChild(td);
@@ -257,7 +299,8 @@
       }
 
       function renderOutput(data) {
-        const firstArray = findFirstArray(data);
+        const displayData = normalizeDisplayData(data);
+        const firstArray = findFirstArray(displayData);
         const tableRendered = renderTableFromArray(firstArray);
         if (tableRendered) {
           outputTableWrap.style.display = "";
@@ -267,7 +310,7 @@
         }
         outputTableWrap.style.display = "none";
         outputEl.style.display = "";
-        outputEl.textContent = JSON.stringify(data, null, 2);
+        outputEl.textContent = JSON.stringify(displayData, null, 2);
       }
 
       function renderReportTypes() {

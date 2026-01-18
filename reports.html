@@ -10,18 +10,20 @@
       }
       body {
         margin: 0;
+        min-height: 100vh;
         font-family: "Segoe UI", Tahoma, sans-serif;
         background: #f6f1ea;
         color: #222;
       }
       .wrap {
-        max-width: 720px;
-        margin: 32px auto;
+        min-height: 100vh;
+        max-width: none;
+        margin: 0;
         padding: 24px;
         background: #fffaf4;
-        border: 1px solid #eadfce;
-        border-radius: 12px;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
       }
       h1 {
         margin: 0 0 16px;
@@ -74,6 +76,32 @@
         border-radius: 8px;
         overflow: auto;
       }
+      .table-wrap {
+        margin-top: 16px;
+        overflow: auto;
+        border: 1px solid #e2d7c5;
+        border-radius: 8px;
+        background: #fff;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #eee2d3;
+        text-align: right;
+        vertical-align: top;
+      }
+      th {
+        background: #f6efe6;
+        font-weight: 700;
+      }
+      tbody tr:nth-child(even) {
+        background: #faf6f0;
+      }
     </style>
   </head>
   <body>
@@ -105,6 +133,9 @@
 
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
+      <div id="outputTableWrap" class="table-wrap" style="display: none">
+        <table id="outputTable"></table>
+      </div>
       <pre id="output">{}</pre>
     </div>
 
@@ -145,6 +176,8 @@
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
       const outputEl = document.getElementById("output");
+      const outputTable = document.getElementById("outputTable");
+      const outputTableWrap = document.getElementById("outputTableWrap");
 
       function setStatus(text) {
         statusEl.textContent = text;
@@ -159,6 +192,82 @@
           return "";
         }
         return `${month}/${day}/${year}`;
+      }
+
+      function findFirstArray(value) {
+        if (Array.isArray(value)) {
+          return value;
+        }
+        if (value && typeof value === "object") {
+          for (const key of Object.keys(value)) {
+            const found = findFirstArray(value[key]);
+            if (found) {
+              return found;
+            }
+          }
+        }
+        return null;
+      }
+
+      function renderTableFromArray(arr) {
+        outputTable.innerHTML = "";
+        if (!Array.isArray(arr) || arr.length === 0) {
+          return false;
+        }
+
+        const isObjectArray = arr.some(
+          (item) => item && typeof item === "object" && !Array.isArray(item)
+        );
+        const columns = isObjectArray
+          ? Array.from(
+              arr.reduce((set, item) => {
+                if (item && typeof item === "object") {
+                  Object.keys(item).forEach((key) => set.add(key));
+                }
+                return set;
+              }, new Set())
+            )
+          : ["value"];
+
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        columns.forEach((col) => {
+          const th = document.createElement("th");
+          th.textContent = col;
+          headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+
+        const tbody = document.createElement("tbody");
+        arr.forEach((item) => {
+          const row = document.createElement("tr");
+          columns.forEach((col) => {
+            const td = document.createElement("td");
+            const value = isObjectArray ? item?.[col] : item;
+            td.textContent =
+              value === null || value === undefined ? "" : String(value);
+            row.appendChild(td);
+          });
+          tbody.appendChild(row);
+        });
+
+        outputTable.appendChild(thead);
+        outputTable.appendChild(tbody);
+        return true;
+      }
+
+      function renderOutput(data) {
+        const firstArray = findFirstArray(data);
+        const tableRendered = renderTableFromArray(firstArray);
+        if (tableRendered) {
+          outputTableWrap.style.display = "";
+          outputEl.style.display = "none";
+          outputEl.textContent = "";
+          return;
+        }
+        outputTableWrap.style.display = "none";
+        outputEl.style.display = "";
+        outputEl.textContent = JSON.stringify(data, null, 2);
       }
 
       function renderReportTypes() {
@@ -234,6 +343,8 @@
 
         setStatus("טוען...");
         outputEl.textContent = "{}";
+        outputEl.style.display = "";
+        outputTableWrap.style.display = "none";
         runBtn.disabled = true;
 
         try {
@@ -263,7 +374,7 @@
             throw new Error(data?.error || "שגיאת שרת");
           }
 
-          outputEl.textContent = JSON.stringify(data, null, 2);
+          renderOutput(data);
           setStatus("הדוח נטען בהצלחה.");
         } catch (err) {
           setStatus(`שגיאה: ${err.message}`);

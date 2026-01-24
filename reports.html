@@ -88,6 +88,9 @@
         border-collapse: collapse;
         font-size: 13px;
       }
+      tr.total-row td {
+        font-weight: 700;
+      }
       th,
       td {
         padding: 8px 10px;
@@ -125,8 +128,10 @@
       <div id="dateRangeGroup">
         <label for="dateFrom">מתאריך</label>
         <input id="dateFrom" type="date" />
-        <label for="dateTo">עד תאריך</label>
-        <input id="dateTo" type="date" />
+        <div id="dateToGroup">
+          <label for="dateTo">עד תאריך</label>
+          <input id="dateTo" type="date" />
+        </div>
         <div class="hint">אופציונלי: לשימוש בדוחות עם טווח תאריכים.</div>
       </div>
 
@@ -167,13 +172,18 @@
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
       ];
 
-      const dateRangeReports = new Set(["175", "181", "182", "198"]);
+      const dateRangeReports = new Set(["182", "198"]);
+      const dateFromOnlyReports = new Set(["175", "181"]);
+      const fixedDateRangeReports = new Map([
+        ["198", { from: "2020-01-01", to: "2194-12-31" }],
+      ]);
       const invoiceReports = new Set(["200"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
       const clientGroup = document.getElementById("clientNumberGroup");
       const dateRangeGroup = document.getElementById("dateRangeGroup");
       const dateFromInput = document.getElementById("dateFrom");
+      const dateToGroup = document.getElementById("dateToGroup");
       const dateToInput = document.getElementById("dateTo");
       const invoiceNumberGroup = document.getElementById("invoiceNumberGroup");
       const invoiceNumberInput = document.getElementById("invoiceNumber");
@@ -256,7 +266,11 @@
           ? Array.from(
               arr.reduce((set, item) => {
                 if (item && typeof item === "object") {
-                  Object.keys(item).forEach((key) => set.add(key));
+                  Object.keys(item).forEach((key) => {
+                    if (key !== "__isTotalRow") {
+                      set.add(key);
+                    }
+                  });
                 }
                 return set;
               }, new Set())
@@ -275,6 +289,9 @@
         const tbody = document.createElement("tbody");
         arr.forEach((item) => {
           const row = document.createElement("tr");
+          if (isObjectArray && item && item.__isTotalRow) {
+            row.classList.add("total-row");
+          }
           columns.forEach((col) => {
             const td = document.createElement("td");
             const value = isObjectArray ? item?.[col] : item;
@@ -300,7 +317,34 @@
 
       function renderOutput(data) {
         const displayData = normalizeDisplayData(data);
-        const firstArray = findFirstArray(displayData);
+        let firstArray = findFirstArray(displayData);
+        if (reportTypeSelect.value === "177" && Array.isArray(firstArray)) {
+          const totalField = 'סה"כ במסמך';
+          const totalLabelField = "סוג מסמך";
+          let total = 0;
+          let hasValue = false;
+          firstArray.forEach((row) => {
+            if (!row || typeof row !== "object") {
+              return;
+            }
+            const value = row[totalField];
+            if (value === null || value === undefined || value === "") {
+              return;
+            }
+            const num = typeof value === "number" ? value : Number(value);
+            if (!Number.isNaN(num)) {
+              total += num;
+              hasValue = true;
+            }
+          });
+          if (hasValue) {
+            firstArray = firstArray.concat({
+              [totalLabelField]: 'סה"כ',
+              [totalField]: total,
+              __isTotalRow: true,
+            });
+          }
+        }
         const tableRendered = renderTableFromArray(firstArray);
         if (tableRendered) {
           outputTableWrap.style.display = "";
@@ -341,14 +385,34 @@
       }
 
       function updateDateRangeSection(reportId) {
-        const needsDateRange = dateRangeReports.has(reportId);
-        if (needsDateRange) {
+        if (dateRangeReports.has(reportId)) {
           dateRangeGroup.style.display = "";
+          dateToGroup.style.display = "";
+          const fixedRange = fixedDateRangeReports.get(reportId);
+          if (fixedRange) {
+            dateFromInput.value = fixedRange.from;
+            dateToInput.value = fixedRange.to;
+            dateFromInput.disabled = true;
+            dateToInput.disabled = true;
+          } else {
+            dateFromInput.disabled = false;
+            dateToInput.disabled = false;
+          }
+          return;
+        }
+        if (dateFromOnlyReports.has(reportId)) {
+          dateRangeGroup.style.display = "";
+          dateToGroup.style.display = "none";
+          dateToInput.value = "";
+          dateFromInput.disabled = false;
+          dateToInput.disabled = false;
           return;
         }
         dateRangeGroup.style.display = "none";
         dateFromInput.value = "";
         dateToInput.value = "";
+        dateFromInput.disabled = false;
+        dateToInput.disabled = false;
       }
 
       function updateInvoiceSection(reportId) {

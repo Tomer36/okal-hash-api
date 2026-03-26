@@ -172,6 +172,10 @@
           <input id="sortCodeTo" type="number" inputmode="numeric" />
         </div>
       </div>
+      <div id="headerNumberGroup" style="display: none">
+        <label for="headerNumber">מספר כותרת</label>
+        <input id="headerNumber" type="number" inputmode="numeric" />
+      </div>
 
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
@@ -212,6 +216,7 @@
       ]);
       const invoiceReports = new Set(["200"]);
       const sortCodeRangeReports = new Set(["175"]);
+      const headerNumberReports = new Set(["174"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
       const clientGroup = document.getElementById("clientNumberGroup");
@@ -224,6 +229,8 @@
       const sortCodeRangeGroup = document.getElementById("sortCodeRangeGroup");
       const sortCodeFromInput = document.getElementById("sortCodeFrom");
       const sortCodeToInput = document.getElementById("sortCodeTo");
+      const headerNumberGroup = document.getElementById("headerNumberGroup");
+      const headerNumberInput = document.getElementById("headerNumber");
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
@@ -607,6 +614,15 @@
         sortCodeToInput.value = "";
       }
 
+      function updateHeaderNumberSection(reportId) {
+        if (headerNumberReports.has(reportId)) {
+          headerNumberGroup.style.display = "";
+          return;
+        }
+        headerNumberGroup.style.display = "none";
+        headerNumberInput.value = "";
+      }
+
       async function runReport() {
         const baseUrl =
           window.location.origin && window.location.origin !== "null"
@@ -663,6 +679,10 @@
           if (sortCodeTo) {
             payload.sortCodeTo = sortCodeTo;
           }
+          const headerNumber = headerNumberInput.value.trim();
+          if (headerNumber) {
+            payload.headerNumber = headerNumber;
+          }
           const response = await fetch(`${baseUrl}/reports/${reportType}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -690,12 +710,14 @@
       updateDateRangeSection(reportTypeSelect.value);
       updateInvoiceSection(reportTypeSelect.value);
       updateSortCodeRangeSection(reportTypeSelect.value);
+      updateHeaderNumberSection(reportTypeSelect.value);
       reportTypeSelect.addEventListener("change", (event) => {
         const selectedReport = event.target.value.trim();
         updateClientSection(selectedReport);
         updateDateRangeSection(selectedReport);
         updateInvoiceSection(selectedReport);
         updateSortCodeRangeSection(selectedReport);
+        updateHeaderNumberSection(selectedReport);
       });
       runBtn.addEventListener("click", runReport);
     </script>

@@ -22,6 +22,7 @@ function parseReportFile(filePath) {
 }
 
 const CLIENT_OP_NAME = "שווה";
+const SORT_CODE_FIELD_NAME = "קוד מיון";
 
 function loadReportTemplate(filePath, input, reportType) {
   const report = parseReportFile(filePath);
@@ -48,6 +49,19 @@ function loadReportTemplate(filePath, input, reportType) {
       param?.name?.includes("מספר מסמך")
     ) {
       return { ...param, defVal: String(input.invoiceNumber) };
+    }
+
+    if (
+      reportType === "175" &&
+      param?.type === "long" &&
+      param?.name?.includes(SORT_CODE_FIELD_NAME)
+    ) {
+      if (param?.opOrigin === "from" && input?.sortCodeFrom) {
+        return { ...param, defVal: String(input.sortCodeFrom) };
+      }
+      if (param?.opOrigin === "to" && input?.sortCodeTo) {
+        return { ...param, defVal: String(input.sortCodeTo) };
+      }
     }
 
     if (param?.type === "date") {
@@ -156,6 +170,8 @@ export async function getReport(type, payload) {
     dateFrom: payload?.dateFrom,
     dateTo: payload?.dateTo,
     invoiceNumber: payload?.invoiceNumber,
+    sortCodeFrom: payload?.sortCodeFrom,
+    sortCodeTo: payload?.sortCodeTo,
     },
     type
   );

@@ -140,6 +140,15 @@
         <input id="invoiceNumber" type="text" inputmode="numeric" />
         <div class="hint">נדרש לדוח 200.</div>
       </div>
+      <div id="sortCodeRangeGroup" style="display: none">
+        <label for="sortCodeFrom">קוד מיון מ</label>
+        <input id="sortCodeFrom" type="number" inputmode="numeric" />
+        <div>
+          <label for="sortCodeTo">קוד מיון עד</label>
+          <input id="sortCodeTo" type="number" inputmode="numeric" />
+        </div>
+        <div class="hint">אופציונלי לדוח 175.</div>
+      </div>
 
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
@@ -178,6 +187,7 @@
         ["198", { from: "2020-01-01", to: "2194-12-31" }],
       ]);
       const invoiceReports = new Set(["200"]);
+      const sortCodeRangeReports = new Set(["175"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientHint = document.getElementById("clientHint");
       const clientGroup = document.getElementById("clientNumberGroup");
@@ -187,6 +197,9 @@
       const dateToInput = document.getElementById("dateTo");
       const invoiceNumberGroup = document.getElementById("invoiceNumberGroup");
       const invoiceNumberInput = document.getElementById("invoiceNumber");
+      const sortCodeRangeGroup = document.getElementById("sortCodeRangeGroup");
+      const sortCodeFromInput = document.getElementById("sortCodeFrom");
+      const sortCodeToInput = document.getElementById("sortCodeTo");
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
@@ -425,6 +438,16 @@
         invoiceNumberInput.value = "";
       }
 
+      function updateSortCodeRangeSection(reportId) {
+        if (sortCodeRangeReports.has(reportId)) {
+          sortCodeRangeGroup.style.display = "";
+          return;
+        }
+        sortCodeRangeGroup.style.display = "none";
+        sortCodeFromInput.value = "";
+        sortCodeToInput.value = "";
+      }
+
       async function runReport() {
         const baseUrl =
           window.location.origin && window.location.origin !== "null"
@@ -470,6 +493,14 @@
           if (invoiceNumber) {
             payload.invoiceNumber = invoiceNumber;
           }
+          const sortCodeFrom = sortCodeFromInput.value.trim();
+          const sortCodeTo = sortCodeToInput.value.trim();
+          if (sortCodeFrom) {
+            payload.sortCodeFrom = sortCodeFrom;
+          }
+          if (sortCodeTo) {
+            payload.sortCodeTo = sortCodeTo;
+          }
           const response = await fetch(`${baseUrl}/reports/${reportType}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -494,11 +525,13 @@
       updateClientSection(reportTypeSelect.value);
       updateDateRangeSection(reportTypeSelect.value);
       updateInvoiceSection(reportTypeSelect.value);
+      updateSortCodeRangeSection(reportTypeSelect.value);
       reportTypeSelect.addEventListener("change", (event) => {
         const selectedReport = event.target.value.trim();
         updateClientSection(selectedReport);
         updateDateRangeSection(selectedReport);
         updateInvoiceSection(selectedReport);
+        updateSortCodeRangeSection(selectedReport);
       });
       runBtn.addEventListener("click", runReport);
     </script>

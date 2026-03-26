@@ -91,6 +91,28 @@
         border-collapse: collapse;
         font-size: 13px;
       }
+      th.sortable {
+        cursor: pointer;
+        position: relative;
+        padding-left: 28px;
+        user-select: none;
+      }
+      th.sortable:hover {
+        background: #eadfce;
+      }
+      th.sortable::before {
+        content: "⇅";
+        position: absolute;
+        left: 10px;
+        color: #8a6a37;
+        font-size: 12px;
+      }
+      th.sortable.sorted-asc::before {
+        content: "▲";
+      }
+      th.sortable.sorted-desc::before {
+        content: "▼";
+      }
       tr.total-row td {
         font-weight: 700;
       }
@@ -209,6 +231,8 @@
       const outputEl = document.getElementById("output");
       const outputTable = document.getElementById("outputTable");
       const outputTableWrap = document.getElementById("outputTableWrap");
+      let currentTableRows = [];
+      let currentSort = { column: null, direction: "asc" };
 
       function setStatus(text) {
         statusEl.textContent = text;
@@ -300,18 +324,52 @@
               }, new Set())
             )
           : ["value"];
+        const totalRows = isObjectArray
+          ? arr.filter((item) => item && item.__isTotalRow)
+          : [];
+        const dataRows = isObjectArray
+          ? arr.filter((item) => !item || !item.__isTotalRow)
+          : arr;
+        const rowsToRender =
+          isObjectArray && currentSort.column
+            ? [
+                ...[...dataRows].sort((left, right) => {
+                  const result = compareValuesAsc(
+                    left?.[currentSort.column],
+                    right?.[currentSort.column]
+                  );
+                  return currentSort.direction === "asc" ? result : -result;
+                }),
+                ...totalRows,
+              ]
+            : arr;
 
         const thead = document.createElement("thead");
         const headRow = document.createElement("tr");
         columns.forEach((col) => {
           const th = document.createElement("th");
           th.textContent = col;
+          th.classList.add("sortable");
+          if (currentSort.column === col) {
+            th.classList.add(
+              currentSort.direction === "asc" ? "sorted-asc" : "sorted-desc"
+            );
+          }
+          th.addEventListener("click", () => {
+            if (currentSort.column === col) {
+              currentSort.direction =
+                currentSort.direction === "asc" ? "desc" : "asc";
+            } else {
+              currentSort = { column: col, direction: "asc" };
+            }
+            renderTableFromArray(currentTableRows);
+          });
           headRow.appendChild(th);
         });
         thead.appendChild(headRow);
 
         const tbody = document.createElement("tbody");
-        arr.forEach((item) => {
+        rowsToRender.forEach((item) => {
           const row = document.createElement("tr");
           if (isObjectArray && item && item.__isTotalRow) {
             row.classList.add("total-row");
@@ -337,6 +395,43 @@
         outputTable.appendChild(thead);
         outputTable.appendChild(tbody);
         return true;
+      }
+
+      function parseSummableNumber(value) {
+        if (value === null || value === undefined || value === "") {
+          return null;
+        }
+        if (typeof value === "number") {
+          return Number.isNaN(value) ? null : value;
+        }
+        if (typeof value === "string") {
+          const normalized = value.replace(/,/g, "").trim();
+          if (!normalized) {
+            return null;
+          }
+          const num = Number(normalized);
+          return Number.isNaN(num) ? null : num;
+        }
+        return null;
+      }
+
+      function formatSummedNumber(value) {
+        return Number(value).toFixed(2);
+      }
+
+      function compareValuesAsc(left, right) {
+        const leftNum = parseSummableNumber(left);
+        const rightNum = parseSummableNumber(right);
+
+        if (leftNum !== null && rightNum !== null) {
+          return leftNum - rightNum;
+        }
+
+        const leftText = left === null || left === undefined ? "" : String(left).trim();
+        const rightText =
+          right === null || right === undefined ? "" : String(right).trim();
+
+        return leftText.localeCompare(rightText, "he");
       }
 
       function renderOutput(data) {
@@ -370,6 +465,56 @@
             });
           }
         }
+        if (reportTypeSelect.value === "175" && Array.isArray(firstArray)) {
+          const firstRow =
+            firstArray.find((row) => row && typeof row === "object") || null;
+          const totalFields = [
+            "יתרת חשבון",
+            "שיקים דחויים",
+            "יתרת תעודות משלוח פתוחות",
+            'סה"כ אובליגו',
+            'סה"כ אשראי',
+            "תקרת אשראי",
+            "חריגה מאשראי",
+            "תקרת אובליגו",
+            "חריגה מאובליגו",
+          ];
+          const labelField =
+            firstRow &&
+            Object.keys(firstRow).find(
+              (key) => key !== "__isTotalRow" && !totalFields.includes(key)
+            );
+          const totalsRow = { __isTotalRow: true };
+          let hasValue = false;
+
+          totalFields.forEach((field) => {
+            let total = 0;
+            let fieldHasValue = false;
+            firstArray.forEach((row) => {
+              if (!row || typeof row !== "object") {
+                return;
+              }
+              const num = parseSummableNumber(row[field]);
+              if (num === null) {
+                return;
+              }
+              total += num;
+              fieldHasValue = true;
+            });
+            if (fieldHasValue) {
+              totalsRow[field] = formatSummedNumber(total);
+              hasValue = true;
+            }
+          });
+
+          if (hasValue) {
+            if (labelField) {
+              totalsRow[labelField] = 'סה"כ';
+            }
+            firstArray = firstArray.concat(totalsRow);
+          }
+        }
+        currentTableRows = Array.isArray(firstArray) ? [...firstArray] : [];
         const tableRendered = renderTableFromArray(firstArray);
         if (tableRendered) {
           setRowCount(rowCount);
@@ -487,6 +632,8 @@
 
         setStatus("טוען...");
         setRowCount();
+        currentSort = { column: null, direction: "asc" };
+        currentTableRows = [];
         outputEl.textContent = "{}";
         outputEl.style.display = "";
         outputTableWrap.style.display = "none";
@@ -532,6 +679,7 @@
         } catch (err) {
           setStatus(`שגיאה: ${err.message}`);
           setRowCount();
+          currentTableRows = [];
         } finally {
           runBtn.disabled = false;
         }

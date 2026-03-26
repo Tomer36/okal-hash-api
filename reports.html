@@ -68,6 +68,9 @@
         color: #7a5b2f;
         min-height: 20px;
       }
+      #rowCount {
+        font-weight: 700;
+      }
       pre {
         margin-top: 16px;
         padding: 12px;
@@ -132,7 +135,6 @@
           <label for="dateTo">עד תאריך</label>
           <input id="dateTo" type="date" />
         </div>
-        <div class="hint">אופציונלי: לשימוש בדוחות עם טווח תאריכים.</div>
       </div>
 
       <div id="invoiceNumberGroup">
@@ -147,11 +149,11 @@
           <label for="sortCodeTo">קוד מיון עד</label>
           <input id="sortCodeTo" type="number" inputmode="numeric" />
         </div>
-        <div class="hint">אופציונלי לדוח 175.</div>
       </div>
 
       <button id="runBtn">הצג דוח</button>
       <div class="status" id="status"></div>
+      <div class="status" id="rowCount"></div>
       <div id="outputTableWrap" class="table-wrap" style="display: none">
         <table id="outputTable"></table>
       </div>
@@ -203,12 +205,21 @@
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const statusEl = document.getElementById("status");
+      const rowCountEl = document.getElementById("rowCount");
       const outputEl = document.getElementById("output");
       const outputTable = document.getElementById("outputTable");
       const outputTableWrap = document.getElementById("outputTableWrap");
 
       function setStatus(text) {
         statusEl.textContent = text;
+      }
+
+      function setRowCount(count) {
+        if (typeof count !== "number" || count < 0) {
+          rowCountEl.textContent = "";
+          return;
+        }
+        rowCountEl.textContent = `מספר שורות: ${count}`;
       }
 
       function formatDateForReport(value) {
@@ -331,6 +342,7 @@
       function renderOutput(data) {
         const displayData = normalizeDisplayData(data);
         let firstArray = findFirstArray(displayData);
+        const rowCount = Array.isArray(firstArray) ? firstArray.length : 0;
         if (reportTypeSelect.value === "177" && Array.isArray(firstArray)) {
           const totalField = 'סה"כ במסמך';
           const totalLabelField = "סוג מסמך";
@@ -360,11 +372,13 @@
         }
         const tableRendered = renderTableFromArray(firstArray);
         if (tableRendered) {
+          setRowCount(rowCount);
           outputTableWrap.style.display = "";
           outputEl.style.display = "none";
           outputEl.textContent = "";
           return;
         }
+        setRowCount(rowCount);
         outputTableWrap.style.display = "none";
         outputEl.style.display = "";
         outputEl.textContent = JSON.stringify(displayData, null, 2);
@@ -472,6 +486,7 @@
         }
 
         setStatus("טוען...");
+        setRowCount();
         outputEl.textContent = "{}";
         outputEl.style.display = "";
         outputTableWrap.style.display = "none";
@@ -516,6 +531,7 @@
           setStatus("הדוח נטען בהצלחה.");
         } catch (err) {
           setStatus(`שגיאה: ${err.message}`);
+          setRowCount();
         } finally {
           runBtn.disabled = false;
         }

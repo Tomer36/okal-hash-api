@@ -265,6 +265,7 @@
       }
 
       const US_DATE_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+      const DISPLAY_DATE_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
       function formatDateForDisplay(value) {
         const match = US_DATE_RE.exec(value);
@@ -273,6 +274,27 @@
         }
         const [, month, day, year] = match;
         return `${day}/${month}/${year}`;
+      }
+
+      function parseDisplayDate(value) {
+        if (typeof value !== "string") {
+          return null;
+        }
+        const match = DISPLAY_DATE_RE.exec(value.trim());
+        if (!match) {
+          return null;
+        }
+        const [, day, month, year] = match;
+        const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+        if (
+          Number.isNaN(parsed.getTime()) ||
+          parsed.getFullYear() !== Number(year) ||
+          parsed.getMonth() !== Number(month) - 1 ||
+          parsed.getDate() !== Number(day)
+        ) {
+          return null;
+        }
+        return parsed.getTime();
       }
 
       function normalizeDisplayData(value) {
@@ -434,11 +456,42 @@
           return leftNum - rightNum;
         }
 
+        const leftDate = parseDisplayDate(left);
+        const rightDate = parseDisplayDate(right);
+        if (leftDate !== null && rightDate !== null) {
+          return leftDate - rightDate;
+        }
+
         const leftText = left === null || left === undefined ? "" : String(left).trim();
         const rightText =
           right === null || right === undefined ? "" : String(right).trim();
 
         return leftText.localeCompare(rightText, "he");
+      }
+
+      function getDefaultSortForReport(reportType, rows) {
+        if (
+          reportType !== "180" ||
+          currentSort.column ||
+          !Array.isArray(rows) ||
+          rows.length === 0
+        ) {
+          return null;
+        }
+        const firstRow = rows.find(
+          (row) => row && typeof row === "object" && !row.__isTotalRow
+        );
+        if (!firstRow) {
+          return null;
+        }
+        const columns = Object.keys(firstRow);
+        const referenceDateColumn = columns.find((column) =>
+          /ת(?:אריך)?[\s.]*אסמ/.test(column)
+        );
+        if (!referenceDateColumn) {
+          return null;
+        }
+        return { column: referenceDateColumn, direction: "asc" };
       }
 
       function renderOutput(data) {
@@ -520,6 +573,13 @@
             }
             firstArray = firstArray.concat(totalsRow);
           }
+        }
+        const defaultSort = getDefaultSortForReport(
+          reportTypeSelect.value,
+          firstArray
+        );
+        if (defaultSort) {
+          currentSort = defaultSort;
         }
         currentTableRows = Array.isArray(firstArray) ? [...firstArray] : [];
         const tableRendered = renderTableFromArray(firstArray);

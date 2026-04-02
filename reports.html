@@ -464,8 +464,7 @@
           (row) =>
             row &&
             typeof row === "object" &&
-            !row.__isTotalRow &&
-            !isOpeningBalanceRow(row, report180Columns)
+            !row.__isTotalRow
         );
         if (transactionRows.length === 0) {
           return rows;
@@ -482,9 +481,7 @@
         totalDebit = roundCurrencyValue(totalDebit);
         totalCredit = roundCurrencyValue(totalCredit);
         const difference = roundCurrencyValue(totalCredit - totalDebit);
-        const finalBalance = roundCurrencyValue(
-          openingBalance - totalDebit + totalCredit
-        );
+        const finalBalance = difference;
         const summaryAmountColumn = report180Columns.debitColumn;
 
         const accountSummaryRows = [
@@ -520,7 +517,7 @@
           {
             [report180Columns.titleColumn]: "",
             [summaryAmountColumn]: formatReport180SummaryAmount(
-              Math.abs(difference),
+              difference,
               "הפרש"
             ),
             __isTotalRow: true,
@@ -551,7 +548,7 @@
           {
             [report180Columns.titleColumn]: "",
             [summaryAmountColumn]: formatReport180SummaryAmount(
-              Math.abs(difference),
+              difference,
               "הפרש"
             ),
             __isTotalRow: true,

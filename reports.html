@@ -330,6 +330,241 @@
         return null;
       }
 
+      function isReport180() {
+        return reportTypeSelect.value === "180";
+      }
+
+      function getReport180Columns(columns) {
+        if (!Array.isArray(columns) || columns.length === 0) {
+          return null;
+        }
+        const balanceColumn =
+          columns.find((column) => column === "יתרה (שקל)") ||
+          columns.find((column) => /יתרה/.test(column));
+        const accountKeyColumn = columns.find((column) => /מפתח חשבון/.test(column));
+        const accountNameColumn = columns.find(
+          (column) => /^שם חשבון$/.test(column) || /שם חשבון/.test(column)
+        );
+        const detailsColumn =
+          columns.find((column) => column === "פרטים") ||
+          columns.find((column) => /פרטים/.test(column));
+        const debitColumn =
+          columns.find((column) => column === "חובה שקל") ||
+          columns.find((column) => /חובה/.test(column) && /שקל/.test(column));
+        const creditColumn =
+          columns.find((column) => column === "זכות שקל") ||
+          columns.find((column) => /זכות/.test(column) && /שקל/.test(column));
+        const titleColumn = columns.find((column) => /כותרת/.test(column));
+        if (!balanceColumn || !debitColumn || !creditColumn || !titleColumn) {
+          return null;
+        }
+        return {
+          balanceColumn,
+          accountKeyColumn,
+          accountNameColumn,
+          detailsColumn,
+          debitColumn,
+          creditColumn,
+          titleColumn,
+        };
+      }
+
+      function isOpeningBalanceRow(row, report180Columns) {
+        if (!row || !report180Columns) {
+          return false;
+        }
+        const details = report180Columns.detailsColumn
+          ? row[report180Columns.detailsColumn]
+          : null;
+        const title = row[report180Columns.titleColumn];
+        return (
+          (typeof details === "string" && details.includes("יתרת פתיחה")) ||
+          (typeof title === "string" && title.includes("יתרת פתיחה"))
+        );
+      }
+
+      function roundCurrencyValue(value) {
+        return Math.round((value + Number.EPSILON) * 100) / 100;
+      }
+
+      function formatRunningBalance(value) {
+        const rounded = roundCurrencyValue(value);
+        if (Number.isInteger(rounded)) {
+          return String(rounded);
+        }
+        return rounded.toFixed(2).replace(/\.?0+$/, "");
+      }
+
+      function applyReport180Balance(rows, report180Columns) {
+        if (!isReport180() || !Array.isArray(rows) || !report180Columns) {
+          return rows;
+        }
+        let runningBalance = null;
+        return rows.map((row) => {
+          if (!row || typeof row !== "object" || row.__isTotalRow) {
+            return row;
+          }
+          if (isOpeningBalanceRow(row, report180Columns)) {
+            const openingBalance = parseSummableNumber(
+              row[report180Columns.balanceColumn]
+            );
+            runningBalance = openingBalance;
+            return row;
+          }
+          if (runningBalance === null) {
+            return row;
+          }
+          const debit =
+            parseSummableNumber(row[report180Columns.debitColumn]) ?? 0;
+          const credit =
+            parseSummableNumber(row[report180Columns.creditColumn]) ?? 0;
+          const movement =
+            parseSummableNumber(row[report180Columns.balanceColumn]) ??
+            roundCurrencyValue(debit - credit);
+          runningBalance = roundCurrencyValue(runningBalance + movement);
+          return {
+            ...row,
+            [report180Columns.balanceColumn]: formatRunningBalance(runningBalance),
+          };
+        });
+      }
+
+      function formatReport180SummaryAmount(value, label) {
+        return `${Number(value).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} ${label}`;
+      }
+
+      function buildReport180SummaryRows(rows) {
+        if (!isReport180() || !Array.isArray(rows) || rows.length === 0) {
+          return rows;
+        }
+        const firstRow = rows.find(
+          (row) => row && typeof row === "object" && !row.__isTotalRow
+        );
+        if (!firstRow) {
+          return rows;
+        }
+        const report180Columns = getReport180Columns(Object.keys(firstRow));
+        if (!report180Columns) {
+          return rows;
+        }
+
+        const openingRow = rows.find((row) =>
+          isOpeningBalanceRow(row, report180Columns)
+        );
+        const openingBalance =
+          parseSummableNumber(openingRow?.[report180Columns.balanceColumn]) ?? 0;
+        const accountSourceRow =
+          openingRow ||
+          rows.find((row) => row && typeof row === "object" && !row.__isTotalRow) ||
+          null;
+        const transactionRows = rows.filter(
+          (row) =>
+            row &&
+            typeof row === "object" &&
+            !row.__isTotalRow &&
+            !isOpeningBalanceRow(row, report180Columns)
+        );
+        if (transactionRows.length === 0) {
+          return rows;
+        }
+
+        let totalDebit = 0;
+        let totalCredit = 0;
+        transactionRows.forEach((row) => {
+          totalDebit +=
+            parseSummableNumber(row[report180Columns.debitColumn]) ?? 0;
+          totalCredit +=
+            parseSummableNumber(row[report180Columns.creditColumn]) ?? 0;
+        });
+        totalDebit = roundCurrencyValue(totalDebit);
+        totalCredit = roundCurrencyValue(totalCredit);
+        const difference = roundCurrencyValue(totalCredit - totalDebit);
+        const finalBalance = roundCurrencyValue(
+          openingBalance - totalDebit + totalCredit
+        );
+        const summaryAmountColumn = report180Columns.debitColumn;
+
+        const accountSummaryRows = [
+          {
+            [report180Columns.titleColumn]: 'סה"כ מפתח חשבון',
+            ...(report180Columns.accountKeyColumn
+              ? {
+                  [report180Columns.accountKeyColumn]:
+                    accountSourceRow?.[report180Columns.accountKeyColumn] ?? "",
+                }
+              : {}),
+            ...(report180Columns.accountNameColumn
+              ? {
+                  [report180Columns.accountNameColumn]:
+                    accountSourceRow?.[report180Columns.accountNameColumn] ?? "",
+                }
+              : {}),
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              totalDebit,
+              "חובה"
+            ),
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: "",
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              totalCredit,
+              "זכות"
+            ),
+            [report180Columns.balanceColumn]: formatSummedNumber(finalBalance),
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: "",
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              Math.abs(difference),
+              "הפרש"
+            ),
+            __isTotalRow: true,
+          },
+        ];
+
+        const reportSummaryRows = [
+          {
+            [report180Columns.titleColumn]: 'סה"כ לדו"ח',
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: "",
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              totalDebit,
+              "חובה"
+            ),
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: "",
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              totalCredit,
+              "זכות"
+            ),
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: "",
+            [summaryAmountColumn]: formatReport180SummaryAmount(
+              Math.abs(difference),
+              "הפרש"
+            ),
+            __isTotalRow: true,
+          },
+          {
+            [report180Columns.titleColumn]: `מספר תנועות בדו"ח ${transactionRows.length}`,
+            __isTotalRow: true,
+          },
+        ];
+
+        return rows.concat(accountSummaryRows, reportSummaryRows);
+      }
+
       function renderTableFromArray(arr) {
         outputTable.innerHTML = "";
         if (!Array.isArray(arr) || arr.length === 0) {
@@ -353,16 +588,30 @@
               }, new Set())
             )
           : ["value"];
+        const report180Columns = isReport180()
+          ? getReport180Columns(columns)
+          : null;
         const totalRows = isObjectArray
           ? arr.filter((item) => item && item.__isTotalRow)
           : [];
         const dataRows = isObjectArray
           ? arr.filter((item) => !item || !item.__isTotalRow)
           : arr;
+        const sortableDataRows =
+          isObjectArray && report180Columns
+            ? dataRows.filter(
+                (item) => !isOpeningBalanceRow(item, report180Columns)
+              )
+            : dataRows;
+        const fixedDataRows =
+          isObjectArray && report180Columns
+            ? dataRows.filter((item) => isOpeningBalanceRow(item, report180Columns))
+            : [];
         const rowsToRender =
           isObjectArray && currentSort.column
             ? [
-                ...[...dataRows].sort((left, right) => {
+                ...fixedDataRows,
+                ...[...sortableDataRows].sort((left, right) => {
                   const result = compareValuesAsc(
                     left?.[currentSort.column],
                     right?.[currentSort.column]
@@ -371,7 +620,10 @@
                 }),
                 ...totalRows,
               ]
-            : arr;
+            : isObjectArray && report180Columns
+              ? [...fixedDataRows, ...sortableDataRows, ...totalRows]
+              : arr;
+        const displayRows = applyReport180Balance(rowsToRender, report180Columns);
 
         const thead = document.createElement("thead");
         const headRow = document.createElement("tr");
@@ -398,7 +650,7 @@
         thead.appendChild(headRow);
 
         const tbody = document.createElement("tbody");
-        rowsToRender.forEach((item) => {
+        displayRows.forEach((item) => {
           const row = document.createElement("tr");
           if (isObjectArray && item && item.__isTotalRow) {
             row.classList.add("total-row");
@@ -573,6 +825,9 @@
             }
             firstArray = firstArray.concat(totalsRow);
           }
+        }
+        if (reportTypeSelect.value === "180" && Array.isArray(firstArray)) {
+          firstArray = buildReport180SummaryRows(firstArray);
         }
         const defaultSort = getDefaultSortForReport(
           reportTypeSelect.value,

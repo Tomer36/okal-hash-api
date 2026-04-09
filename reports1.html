@@ -132,7 +132,7 @@
         box-shadow: none;
       }
       .actions {
-        /* display: flex; */
+        display: flex;
         gap: 10px;
         margin-top: var(--space-5);
         align-items: stretch;
@@ -303,75 +303,55 @@
         background: #faf6f0;
       }
       @media print {
-        /* Hide everything except the results section */
         body {
           background: #fff;
-          margin: 0;
+        }
+        body * {
+          visibility: hidden;
         }
         .wrap {
           padding: 0;
           background: #fff;
-          box-shadow: none;
-          border-radius: 0;
-          max-width: 100%;
         }
-        .page-header,
-        .control-panel,
-        .results-meta,
-        .panel-title {
-          display: none !important;
+        #outputTableWrap,
+        #outputTableWrap *,
+        #printReportTitle,
+        #printReportTitle *,
+        #output,
+        #output * {
+          visibility: visible;
         }
-        .layout {
-          gap: 0;
-        }
-        .results-panel {
-          border: none;
-          border-radius: 0;
-          box-shadow: none;
-          padding: 0;
-          background: #fff;
-        }
-        .results-body {
-          gap: 0;
+        #printReportTitle,
+        #outputTableWrap,
+        #output {
+          position: absolute;
+          width: 100%;
+          margin: 0;
         }
         #printReportTitle {
-          display: block !important;
-          font-size: 18px;
-          font-weight: 700;
-          color: #000;
-          margin-bottom: 12px;
+          display: block;
+          top: 0;
+          right: 0;
+          left: 0;
         }
-        #outputTableWrap {
+        #outputTableWrap,
+        #output {
+          top: 36px;
+          right: 0;
+          left: 0;
+        }
+        .table-wrap,
+        pre {
           border: none;
           border-radius: 0;
           overflow: visible;
-          background: #fff;
-        }
-        pre#output {
-          border: none;
-          border-radius: 0;
-          overflow: visible;
-          background: #fff;
+          margin-top: 0;
         }
         table {
           font-size: 11px;
-          width: 100%;
-        }
-        th {
-          background: #f0f0f0 !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        tbody tr:nth-child(even) {
-          background: #fafafa !important;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
         }
         th.sortable::before {
-          content: "" !important;
-        }
-        th.sortable {
-          padding-left: 10px;
+          content: "";
         }
       }
     </style>
@@ -381,7 +361,6 @@
       <div class="page-header">
         <div class="page-copy">
           <h1>דוחות</h1>
-          <p style="margin:6px 0 0;color:#7a5b2f;font-size:14px;line-height:1.5;">בחר סוג דוח, מלא את הפרטים הנדרשים והצג את התוצאות</p>
         </div>
       </div>
 
@@ -430,7 +409,6 @@
 
           <div class="actions">
         <button id="runBtn">הצג דוח</button>
-        <span style="flex:1"></span>
         <button id="printBtn" type="button">הדפס</button>
       </div>
         </section>
@@ -517,7 +495,7 @@
       }
 
       function setPrintAvailability(isVisible) {
-        printBtn.style.display = isVisible ? "inline-flex" : "none";
+        printBtn.style.display = isVisible ? "block" : "none";
       }
 
       function updatePrintReportTitle() {

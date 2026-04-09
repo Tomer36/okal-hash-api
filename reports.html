@@ -1136,6 +1136,36 @@
             firstArray = firstArray.concat(totalsRow);
           }
         }
+        if (reportTypeSelect.value === "188" && Array.isArray(firstArray)) {
+          const vatField = 'כולל מע"מ';
+          const firstRow =
+            firstArray.find((row) => row && typeof row === "object") || null;
+          const totalLabelField =
+            firstRow &&
+            Object.keys(firstRow).find(
+              (key) => key !== "__isTotalRow" && key !== vatField
+            );
+          let vatTotal = 0;
+          let hasVat = false;
+          firstArray.forEach((row) => {
+            if (!row || typeof row !== "object") {
+              return;
+            }
+            const num = parseSummableNumber(row[vatField]);
+            if (num === null) {
+              return;
+            }
+            vatTotal += num;
+            hasVat = true;
+          });
+          if (hasVat) {
+            firstArray = firstArray.concat({
+              ...(totalLabelField ? { [totalLabelField]: 'סה"כ' } : {}),
+              [vatField]: formatSummedNumber(vatTotal),
+              __isTotalRow: true,
+            });
+          }
+        }
         if (reportTypeSelect.value === "180" && Array.isArray(firstArray)) {
           firstArray = buildReport180SummaryRows(firstArray);
         }

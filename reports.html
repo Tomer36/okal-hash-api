@@ -1004,7 +1004,7 @@
         if (currentSort.column || !Array.isArray(rows) || rows.length === 0) {
           return null;
         }
-        if (reportType === "183") {
+        if (reportType === "183" || reportType === "187") {
           return { column: "תאריך ערך", direction: "asc" };
         }
         if (reportType !== "180") {

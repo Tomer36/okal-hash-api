@@ -1001,12 +1001,13 @@
       }
 
       function getDefaultSortForReport(reportType, rows) {
-        if (
-          reportType !== "180" ||
-          currentSort.column ||
-          !Array.isArray(rows) ||
-          rows.length === 0
-        ) {
+        if (currentSort.column || !Array.isArray(rows) || rows.length === 0) {
+          return null;
+        }
+        if (reportType === "183") {
+          return { column: "תאריך ערך", direction: "asc" };
+        }
+        if (reportType !== "180") {
           return null;
         }
         const firstRow = rows.find(

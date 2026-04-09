@@ -1030,6 +1030,37 @@
         const displayData = normalizeDisplayData(data);
         let firstArray = findFirstArray(displayData);
         const rowCount = Array.isArray(firstArray) ? firstArray.length : 0;
+        if (reportTypeSelect.value === "183" && Array.isArray(firstArray)) {
+          const debitField = "חובה שקל";
+          const creditField = "זכות שקל";
+          const balanceField = "יתרת חוב";
+          const removeField = "סכום שקל פתוח בתנועה";
+          let runningBalance = null;
+          firstArray = firstArray.map((row) => {
+            if (!row || typeof row !== "object" || row.__isTotalRow) {
+              return row;
+            }
+            const debit = parseSummableNumber(row[debitField]) ?? 0;
+            const credit = parseSummableNumber(row[creditField]) ?? 0;
+            if (runningBalance === null) {
+              runningBalance = roundCurrencyValue(debit - credit);
+            } else {
+              runningBalance = roundCurrencyValue(runningBalance + debit);
+            }
+            // Build new row with balanceField replacing removeField in the same position
+            const entries = Object.entries(row);
+            const removeIndex = entries.findIndex(([k]) => k === removeField);
+            const newEntries = entries
+              .filter(([k]) => k !== removeField)
+              .map(([k, v]) => [k, v]);
+            if (removeIndex !== -1) {
+              newEntries.splice(removeIndex, 0, [balanceField, formatSummedNumber(runningBalance)]);
+            } else {
+              newEntries.push([balanceField, formatSummedNumber(runningBalance)]);
+            }
+            return Object.fromEntries(newEntries);
+          });
+        }
         if (reportTypeSelect.value === "177" && Array.isArray(firstArray)) {
           const totalField = 'סה"כ במסמך';
           const totalLabelField = "סוג מסמך";

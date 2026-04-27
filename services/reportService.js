@@ -158,6 +158,31 @@ function normalizeReportData(value) {
   return value;
 }
 
+const MOVEMENT_FIELD = 'סה"כ בתנועה';
+const VAT_FIELD = 'סה"כ בתנועה כולל מע"מ';
+const INVENTORY_FIELD = "מזהה מלאי בסיס";
+
+function processReport200(data) {
+  if (!Array.isArray(data)) return data;
+
+  let total = 0;
+
+  const rows = data.map((row) => {
+    const { [INVENTORY_FIELD]: _removed, ...rest } = row;
+    const base = Number(rest[MOVEMENT_FIELD]) || 0;
+    const withVat = parseFloat((base * 1.18).toFixed(2));
+    total += withVat;
+    return { ...rest, [VAT_FIELD]: withVat };
+  });
+
+  rows.push({
+    'מס חשבונית': 'סה"כ',
+    [VAT_FIELD]: parseFloat(total.toFixed(2)),
+  });
+
+  return rows;
+}
+
 /* -------------------- MAIN SERVICE -------------------- */
 export async function getReport(type, payload) {
   const templatePath = `./reports/${type}.txt`;
@@ -210,5 +235,7 @@ export async function getReport(type, payload) {
     throw new Error("No report data found");
   }
 
-  return normalizeReportData(result);
+  const normalized = normalizeReportData(result);
+  if (type === "200") return processReport200(normalized);
+  return normalized;
 }

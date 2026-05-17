@@ -1410,6 +1410,11 @@
       });
       runBtn.addEventListener("click", runReport);
       printBtn.addEventListener("click", printReport);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !runBtn.disabled) {
+          runReport();
+        }
+      });
     </script>
   </body>
 </html>

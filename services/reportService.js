@@ -37,9 +37,7 @@ function loadReportTemplate(filePath, input, reportType) {
   const dateTo = input?.dateTo || today;
 
   report.params_data = report.params_data.map((param) => {
-    if (
-      param?.type === "txt" && param?.opName === CLIENT_OP_NAME
-    ) {
+    if (param?.type === "txt" && param?.opName === CLIENT_OP_NAME) {
       return { ...param, defVal: String(input.ID) };
     }
 
@@ -161,24 +159,74 @@ function normalizeReportData(value) {
 const MOVEMENT_FIELD = 'סה"כ בתנועה';
 const VAT_FIELD = 'סה"כ בתנועה כולל מע"מ';
 const INVENTORY_FIELD = "מזהה מלאי בסיס";
+const REPORT_200_TOTAL_LABEL_FIELD = "מס חשבונית";
+const REPORT_200_VAT_AMOUNT_FIELD = 'מע"מ';
+const REPORT_200_VAT_RATE = 0.18;
+
+function roundCurrencyValue(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 function processReport200(data) {
   if (!Array.isArray(data)) return data;
 
-  let total = 0;
+  const grossAmountFieldCandidates = [
+    'כולל מע"מ',
+    "כולל מעמ",
+    VAT_FIELD,
+    MOVEMENT_FIELD,
+  ];
+  let totalBeforeVat = 0;
+  let totalVat = 0;
+  let totalGross = 0;
 
   const rows = data.map((row) => {
     const { [INVENTORY_FIELD]: _removed, ...rest } = row;
-    const base = Number(rest[MOVEMENT_FIELD]) || 0;
-    const withVat = parseFloat((base * 1.18).toFixed(2));
-    total += withVat;
-    return { ...rest, [VAT_FIELD]: withVat };
+    const grossField = grossAmountFieldCandidates.find(
+      (field) => field in rest && rest[field] !== null && rest[field] !== ""
+    );
+    const gross = Number(grossField ? rest[grossField] : 0) || 0;
+    const base = roundCurrencyValue(gross / (1 + REPORT_200_VAT_RATE));
+    const vatAmount = roundCurrencyValue(gross - base);
+    totalBeforeVat += base;
+    totalVat += vatAmount;
+    totalGross += gross;
+    if (grossField && grossField !== VAT_FIELD) {
+      delete rest[grossField];
+    }
+    return {
+      ...rest,
+      [MOVEMENT_FIELD]: base,
+      [REPORT_200_VAT_AMOUNT_FIELD]: vatAmount,
+      [VAT_FIELD]: gross,
+    };
   });
 
-  rows.push({
-    'מס חשבונית': 'סה"כ',
-    [VAT_FIELD]: parseFloat(total.toFixed(2)),
-  });
+  rows.push(
+    {
+      [REPORT_200_TOTAL_LABEL_FIELD]: 'סה"כ',
+      [MOVEMENT_FIELD]: roundCurrencyValue(totalBeforeVat),
+      [REPORT_200_VAT_AMOUNT_FIELD]: roundCurrencyValue(totalVat),
+      [VAT_FIELD]: roundCurrencyValue(totalGross),
+      __isTotalRow: true,
+      __isTableTotal: true,
+    },
+    {
+      [REPORT_200_TOTAL_LABEL_FIELD]: 'סה"כ לפני מע"מ',
+      [MOVEMENT_FIELD]: roundCurrencyValue(totalBeforeVat),
+      __isTotalRow: true,
+    },
+    {
+      [REPORT_200_TOTAL_LABEL_FIELD]: 'מע"מ 18%',
+      [REPORT_200_VAT_AMOUNT_FIELD]: roundCurrencyValue(totalVat),
+      __isTotalRow: true,
+    },
+    {
+      [REPORT_200_TOTAL_LABEL_FIELD]: 'סה"כ לתשלום',
+      [VAT_FIELD]: roundCurrencyValue(totalGross),
+      __isTotalRow: true,
+    }
+  );
 
   return rows;
 }
@@ -201,13 +249,13 @@ export async function getReport(type, payload) {
   const reportTemplate = loadReportTemplate(
     templatePath,
     {
-    ID: payload?.clientNumber,
-    dateFrom: payload?.dateFrom,
-    dateTo: payload?.dateTo,
-    invoiceNumber: payload?.invoiceNumber,
-    sortCodeFrom: payload?.sortCodeFrom,
-    sortCodeTo: payload?.sortCodeTo,
-    headerNumber: payload?.headerNumber,
+      ID: payload?.clientNumber,
+      dateFrom: payload?.dateFrom,
+      dateTo: payload?.dateTo,
+      invoiceNumber: payload?.invoiceNumber,
+      sortCodeFrom: payload?.sortCodeFrom,
+      sortCodeTo: payload?.sortCodeTo,
+      headerNumber: payload?.headerNumber,
     },
     type
   );

@@ -283,6 +283,43 @@
       tr.total-row td {
         font-weight: 700;
       }
+      tr.report-200-summary-row td {
+        background: transparent;
+        border-bottom: none;
+        padding: 12px 16px;
+      }
+      .report-200-summary-block {
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 6px 32px;
+        width: fit-content;
+        margin-inline-start: auto;
+        padding: 14px 22px;
+        background: linear-gradient(160deg, #faf6ef, #ede3d4);
+        border-radius: 14px;
+        border: 1px solid #d4c4ad;
+        box-shadow: 0 4px 12px rgba(91, 65, 37, 0.07);
+      }
+      .report-200-summary-label {
+        font-weight: 600;
+        white-space: nowrap;
+        color: #4a3520;
+      }
+      .report-200-summary-amount {
+        font-variant-numeric: tabular-nums;
+        min-width: 90px;
+        direction: ltr;
+        unicode-bidi: plaintext;
+        text-align: right;
+      }
+      .report-200-summary-final {
+        font-size: 16px;
+        font-weight: 700;
+        color: #2a1a08;
+        border-top: 1.5px solid #bfa882;
+        padding-top: 7px;
+        margin-top: 2px;
+      }
       th,
       td {
         padding: 8px 10px;
@@ -341,17 +378,17 @@
           color: #000;
           margin-bottom: 12px;
         }
-        #outputTableWrap {
-          border: none;
-          border-radius: 0;
-          overflow: visible;
-          background: #fff;
-        }
-        pre#output {
-          border: none;
-          border-radius: 0;
-          overflow: visible;
-          background: #fff;
+      #outputTableWrap {
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+        background: #fff;
+      }
+      pre#output {
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+        background: #fff;
         }
         table {
           font-size: 11px;
@@ -858,7 +895,7 @@
               arr.reduce((set, item) => {
                 if (item && typeof item === "object") {
                   Object.keys(item).forEach((key) => {
-                    if (key !== "__isTotalRow") {
+                    if (key !== "__isTotalRow" && key !== "__isTableTotal") {
                       set.add(key);
                     }
                   });
@@ -928,8 +965,16 @@
         });
         thead.appendChild(headRow);
 
+        const isReport200 = reportTypeSelect.value === "200" && isObjectArray;
+        const report200TotalItems = isReport200
+          ? displayRows.filter((item) => item && item.__isTotalRow && !item.__isTableTotal)
+          : [];
+        const rowsForLoop = isReport200
+          ? displayRows.filter((item) => !item || !item.__isTotalRow || item.__isTableTotal)
+          : displayRows;
+
         const tbody = document.createElement("tbody");
-        displayRows.forEach((item) => {
+        rowsForLoop.forEach((item) => {
           const row = document.createElement("tr");
           if (isObjectArray && item && item.__isTotalRow) {
             row.classList.add("total-row");
@@ -951,6 +996,37 @@
           });
           tbody.appendChild(row);
         });
+
+        if (report200TotalItems.length > 0) {
+          const summaryRow = document.createElement("tr");
+          summaryRow.classList.add("report-200-summary-row");
+          const summaryCell = document.createElement("td");
+          summaryCell.colSpan = Math.max(columns.length, 1);
+          const block = document.createElement("div");
+          block.classList.add("report-200-summary-block");
+          report200TotalItems.forEach((item, idx) => {
+            const isLast = idx === report200TotalItems.length - 1;
+            const label = item["מס חשבונית"] ?? "";
+            const amount = [
+              item['סה"כ בתנועה כולל מע"מ'],
+              item['מע"מ'],
+              item['סה"כ בתנועה'],
+            ].find((v) => v !== null && v !== undefined && v !== "") ?? "";
+            const labelEl = document.createElement("span");
+            labelEl.classList.add("report-200-summary-label");
+            if (isLast) labelEl.classList.add("report-200-summary-final");
+            labelEl.textContent = String(label);
+            const amountEl = document.createElement("span");
+            amountEl.classList.add("report-200-summary-amount", "num");
+            if (isLast) amountEl.classList.add("report-200-summary-final");
+            amountEl.textContent = String(amount);
+            block.appendChild(labelEl);
+            block.appendChild(amountEl);
+          });
+          summaryCell.appendChild(block);
+          summaryRow.appendChild(summaryCell);
+          tbody.appendChild(summaryRow);
+        }
 
         outputTable.appendChild(thead);
         outputTable.appendChild(tbody);

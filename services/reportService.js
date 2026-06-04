@@ -196,8 +196,6 @@ function processReport200(data) {
     }
     return {
       ...rest,
-      [MOVEMENT_FIELD]: base,
-      [REPORT_200_VAT_AMOUNT_FIELD]: vatAmount,
       [VAT_FIELD]: gross,
     };
   });
@@ -205,8 +203,6 @@ function processReport200(data) {
   rows.push(
     {
       [REPORT_200_TOTAL_LABEL_FIELD]: 'סה"כ',
-      [MOVEMENT_FIELD]: roundCurrencyValue(totalBeforeVat),
-      [REPORT_200_VAT_AMOUNT_FIELD]: roundCurrencyValue(totalVat),
       [VAT_FIELD]: roundCurrencyValue(totalGross),
       __isTotalRow: true,
       __isTableTotal: true,

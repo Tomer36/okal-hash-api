@@ -894,6 +894,9 @@
           ? Array.from(
               arr.reduce((set, item) => {
                 if (item && typeof item === "object") {
+                  if (reportTypeSelect.value === "200" && item.__isTotalRow && !item.__isTableTotal) {
+                    return set;
+                  }
                   Object.keys(item).forEach((key) => {
                     if (key !== "__isTotalRow" && key !== "__isTableTotal") {
                       set.add(key);

@@ -506,12 +506,14 @@
         { id: "185", name: "אינדקס אנשי קשר ולקוחות לקוח בודד", needsClient: true },        { id: "187", name: "API תנועות שיקים דחויים", needsClient: true },
         { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
         { id: "189", name: "הזמנות פתוחות וסגורות לפי פריטים", needsClient: true },
+        { id: "192", name: "ריכוז קבלות מרואן", needsClient: false },
+        { id: "197", name: "דוח 197", needsClient: false },
         { id: "198", name: "API אינדקס לקוחות", needsClient: false },
         { id: "200", name: "העתק חשבונית לפי מס חשבונית", needsClient: false },
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
       ];
 
-      const dateRangeReports = new Set(["182", "198"]);
+      const dateRangeReports = new Set(["182", "192", "197", "198"]);
       const dateFromOnlyReports = new Set(["175", "181"]);
       const fixedDateRangeReports = new Map([
         ["198", { from: "2020-01-01", to: "2194-12-31" }],

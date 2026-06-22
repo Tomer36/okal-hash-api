@@ -72,6 +72,16 @@ function loadReportTemplate(filePath, input, reportType) {
       return { ...param, defVal: String(input.headerNumber) };
     }
 
+    if (
+      reportType === "197" &&
+      input?.headerNumber &&
+      param?.type === "long" &&
+      param?.name?.includes(HEADER_NUMBER_FIELD_NAME) &&
+      param?.opOrigin === "from"
+    ) {
+      return { ...param, defVal: String(input.headerNumber) };
+    }
+
     if (param?.type === "date") {
       if (param?.opOrigin === "from") {
         return { ...param, defVal: dateFrom };

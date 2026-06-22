@@ -507,7 +507,7 @@
         { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
         { id: "189", name: "הזמנות פתוחות וסגורות לפי פריטים", needsClient: true },
         { id: "192", name: "ריכוז קבלות מרואן", needsClient: false },
-        { id: "197", name: "דוח 197", needsClient: false },
+        { id: "197", name: "דוח חשבוניות סוף חודש מרואן", needsClient: false },
         { id: "198", name: "API אינדקס לקוחות", needsClient: false },
         { id: "200", name: "העתק חשבונית לפי מס חשבונית", needsClient: false },
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
@@ -520,7 +520,7 @@
       ]);
       const invoiceReports = new Set(["200"]);
       const sortCodeRangeReports = new Set(["175"]);
-      const headerNumberReports = new Set(["174"]);
+      const headerNumberReports = new Set(["174", "197"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientGroup = document.getElementById("clientNumberGroup");
       const dateRangeGroup = document.getElementById("dateRangeGroup");
@@ -1141,6 +1141,48 @@
             }
             return Object.fromEntries(newEntries);
           });
+
+          const firstRow =
+            firstArray.find(
+              (row) => row && typeof row === "object" && !row.__isTotalRow
+            ) || null;
+          const totalLabelField =
+            firstRow &&
+            Object.keys(firstRow).find(
+              (key) =>
+                key !== "__isTotalRow" &&
+                key !== debitField &&
+                key !== creditField
+            );
+          const totalsRow = { __isTotalRow: true };
+          let hasTotal = false;
+
+          [debitField, creditField].forEach((field) => {
+            let total = 0;
+            let hasValue = false;
+            firstArray.forEach((row) => {
+              if (!row || typeof row !== "object" || row.__isTotalRow) {
+                return;
+              }
+              const num = parseSummableNumber(row[field]);
+              if (num === null) {
+                return;
+              }
+              total += num;
+              hasValue = true;
+            });
+            if (hasValue) {
+              totalsRow[field] = formatSummedNumber(total);
+              hasTotal = true;
+            }
+          });
+
+          if (hasTotal) {
+            if (totalLabelField) {
+              totalsRow[totalLabelField] = 'סה"כ';
+            }
+            firstArray = firstArray.concat(totalsRow);
+          }
         }
         if (reportTypeSelect.value === "177" && Array.isArray(firstArray)) {
           const totalField = 'סה"כ במסמך';
@@ -1170,7 +1212,7 @@
           }
         }
         if (reportTypeSelect.value === "187" && Array.isArray(firstArray)) {
-          const totalField = 'סה"כ שקל בתנועה';
+          const totalField = "סכום שקל";
           const firstRow =
             firstArray.find((row) => row && typeof row === "object") || null;
           const totalLabelField =
@@ -1244,6 +1286,83 @@
           if (hasValue) {
             if (labelField) {
               totalsRow[labelField] = 'סה"כ';
+            }
+            firstArray = firstArray.concat(totalsRow);
+          }
+        }
+        if (reportTypeSelect.value === "192" && Array.isArray(firstArray)) {
+          const amountFields = [
+            'סה"כ אשראי',
+            'סה"כ מזומן בקבלה',
+            'סה"כ שקים בקבלה',
+            "סכום העברה לבנק",
+          ];
+          const receiptTotalField = 'סה"כ קבלה';
+          const bankTransferField = amountFields[amountFields.length - 1];
+
+          firstArray = firstArray.map((row) => {
+            if (!row || typeof row !== "object" || row.__isTotalRow) {
+              return row;
+            }
+            const receiptTotal = amountFields.reduce(
+              (total, field) => total + (parseSummableNumber(row[field]) ?? 0),
+              0
+            );
+            const entries = Object.entries(row).filter(
+              ([key]) => key !== receiptTotalField
+            );
+            const bankTransferIndex = entries.findIndex(
+              ([key]) => key === bankTransferField
+            );
+            const receiptTotalEntry = [
+              receiptTotalField,
+              formatSummedNumber(receiptTotal),
+            ];
+
+            if (bankTransferIndex === -1) {
+              entries.push(receiptTotalEntry);
+            } else {
+              entries.splice(bankTransferIndex + 1, 0, receiptTotalEntry);
+            }
+            return Object.fromEntries(entries);
+          });
+
+          const firstRow =
+            firstArray.find(
+              (row) => row && typeof row === "object" && !row.__isTotalRow
+            ) || null;
+          const totalFields = [...amountFields, receiptTotalField];
+          const totalLabelField =
+            firstRow &&
+            Object.keys(firstRow).find(
+              (key) => key !== "__isTotalRow" && !totalFields.includes(key)
+            );
+          const totalsRow = { __isTotalRow: true };
+          let hasTotal = false;
+
+          totalFields.forEach((field) => {
+            let total = 0;
+            let hasValue = false;
+            firstArray.forEach((row) => {
+              if (!row || typeof row !== "object" || row.__isTotalRow) {
+                return;
+              }
+              const num = parseSummableNumber(row[field]);
+              if (num === null) {
+                return;
+              }
+              total += num;
+              hasValue = true;
+            });
+            if (hasValue) {
+              totalsRow[field] = formatSummedNumber(total);
+              hasTotal = true;
+            }
+          });
+
+          if (hasTotal) {
+            if (totalLabelField) {
+              totalsRow[totalLabelField] = 'סה"כ';
             }
             firstArray = firstArray.concat(totalsRow);
           }

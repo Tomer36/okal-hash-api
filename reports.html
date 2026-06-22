@@ -458,8 +458,12 @@
         </div>
       </div>
             <div id="headerNumberGroup" class="field compact" style="display: none">
-        <label for="headerNumber">מספר כותרת</label>
-        <input id="headerNumber" type="number" inputmode="numeric" />
+        <label for="headerNumberFrom">מספר כותרת החל מ</label>
+        <input id="headerNumberFrom" type="number" inputmode="numeric" />
+        <div id="headerNumberToGroup" style="display: none">
+          <label for="headerNumberTo">מספר כותרת עד</label>
+          <input id="headerNumberTo" type="number" inputmode="numeric" />
+        </div>
       </div>
 
           </div>
@@ -521,6 +525,7 @@
       const invoiceReports = new Set(["200"]);
       const sortCodeRangeReports = new Set(["175"]);
       const headerNumberReports = new Set(["174", "197"]);
+      const headerNumberRangeReports = new Set(["197"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientGroup = document.getElementById("clientNumberGroup");
       const dateRangeGroup = document.getElementById("dateRangeGroup");
@@ -533,7 +538,9 @@
       const sortCodeFromInput = document.getElementById("sortCodeFrom");
       const sortCodeToInput = document.getElementById("sortCodeTo");
       const headerNumberGroup = document.getElementById("headerNumberGroup");
-      const headerNumberInput = document.getElementById("headerNumber");
+      const headerNumberFromInput = document.getElementById("headerNumberFrom");
+      const headerNumberToGroup = document.getElementById("headerNumberToGroup");
+      const headerNumberToInput = document.getElementById("headerNumberTo");
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const printBtn = document.getElementById("printBtn");
@@ -1114,20 +1121,18 @@
         if (reportTypeSelect.value === "183" && Array.isArray(firstArray)) {
           const debitField = "חובה שקל";
           const creditField = "זכות שקל";
-          const balanceField = "יתרת חוב";
+          const balanceField = "יתרה";
           const removeField = "סכום שקל פתוח בתנועה";
-          let runningBalance = null;
+          let runningBalance = 0;
           firstArray = firstArray.map((row) => {
             if (!row || typeof row !== "object" || row.__isTotalRow) {
               return row;
             }
             const debit = parseSummableNumber(row[debitField]) ?? 0;
             const credit = parseSummableNumber(row[creditField]) ?? 0;
-            if (runningBalance === null) {
-              runningBalance = roundCurrencyValue(debit - credit);
-            } else {
-              runningBalance = roundCurrencyValue(runningBalance + debit);
-            }
+            runningBalance = roundCurrencyValue(
+              runningBalance + debit - credit
+            );
             // Build new row with balanceField replacing removeField in the same position
             const entries = Object.entries(row);
             const removeIndex = entries.findIndex(([k]) => k === removeField);
@@ -1152,7 +1157,8 @@
               (key) =>
                 key !== "__isTotalRow" &&
                 key !== debitField &&
-                key !== creditField
+                key !== creditField &&
+                key !== balanceField
             );
           const totalsRow = { __isTotalRow: true };
           let hasTotal = false;
@@ -1178,15 +1184,34 @@
           });
 
           if (hasTotal) {
+            const debitTotal = parseSummableNumber(totalsRow[debitField]) ?? 0;
+            const creditTotal = parseSummableNumber(totalsRow[creditField]) ?? 0;
+            totalsRow[balanceField] = formatSummedNumber(
+              roundCurrencyValue(debitTotal - creditTotal)
+            );
             if (totalLabelField) {
               totalsRow[totalLabelField] = 'סה"כ';
             }
             firstArray = firstArray.concat(totalsRow);
           }
         }
-        if (reportTypeSelect.value === "177" && Array.isArray(firstArray)) {
+        if (
+          (reportTypeSelect.value === "177" ||
+            reportTypeSelect.value === "182") &&
+          Array.isArray(firstArray)
+        ) {
           const totalField = 'סה"כ במסמך';
-          const totalLabelField = "סוג מסמך";
+          const firstRow =
+            firstArray.find(
+              (row) => row && typeof row === "object" && !row.__isTotalRow
+            ) || null;
+          const totalLabelField =
+            reportTypeSelect.value === "177"
+              ? "סוג מסמך"
+              : firstRow &&
+                Object.keys(firstRow).find(
+                  (key) => key !== "__isTotalRow" && key !== totalField
+                );
           let total = 0;
           let hasValue = false;
           firstArray.forEach((row) => {
@@ -1205,7 +1230,7 @@
           });
           if (hasValue) {
             firstArray = firstArray.concat({
-              [totalLabelField]: 'סה"כ',
+              ...(totalLabelField ? { [totalLabelField]: 'סה"כ' } : {}),
               [totalField]: total,
               __isTotalRow: true,
             });
@@ -1367,6 +1392,51 @@
             firstArray = firstArray.concat(totalsRow);
           }
         }
+        if (reportTypeSelect.value === "197" && Array.isArray(firstArray)) {
+          const firstRow =
+            firstArray.find(
+              (row) => row && typeof row === "object" && !row.__isTotalRow
+            ) || null;
+          const columns = firstRow ? Object.keys(firstRow) : [];
+          const debitField =
+            columns.find((column) => column === "חובה שקל") ||
+            columns.find((column) => column === "חובה") ||
+            columns.find((column) => /^חובה(?:\s|$)/.test(column));
+          const creditField =
+            columns.find((column) => column === "זכות שקל") ||
+            columns.find((column) => column === "זכות") ||
+            columns.find((column) => /^זכות(?:\s|$)/.test(column));
+
+          if (debitField && creditField) {
+            const balanceField = "יתרה";
+            const totalLabelField = columns.find(
+              (column) =>
+                column !== debitField &&
+                column !== creditField &&
+                column !== balanceField
+            );
+            let debitTotal = 0;
+            let creditTotal = 0;
+
+            firstArray.forEach((row) => {
+              if (!row || typeof row !== "object" || row.__isTotalRow) {
+                return;
+              }
+              debitTotal += parseSummableNumber(row[debitField]) ?? 0;
+              creditTotal += parseSummableNumber(row[creditField]) ?? 0;
+            });
+
+            firstArray = firstArray.concat({
+              ...(totalLabelField ? { [totalLabelField]: 'סה"כ' } : {}),
+              [debitField]: formatSummedNumber(debitTotal),
+              [creditField]: formatSummedNumber(creditTotal),
+              [balanceField]: formatSummedNumber(
+                roundCurrencyValue(debitTotal - creditTotal)
+              ),
+              __isTotalRow: true,
+            });
+          }
+        }
         if (reportTypeSelect.value === "188" && Array.isArray(firstArray)) {
           const vatField = 'כולל מע"מ';
           const firstRow =
@@ -1500,10 +1570,18 @@
       function updateHeaderNumberSection(reportId) {
         if (headerNumberReports.has(reportId)) {
           headerNumberGroup.style.display = "";
+          headerNumberToGroup.style.display = headerNumberRangeReports.has(reportId)
+            ? ""
+            : "none";
+          if (!headerNumberRangeReports.has(reportId)) {
+            headerNumberToInput.value = "";
+          }
           return;
         }
         headerNumberGroup.style.display = "none";
-        headerNumberInput.value = "";
+        headerNumberToGroup.style.display = "none";
+        headerNumberFromInput.value = "";
+        headerNumberToInput.value = "";
       }
 
       async function runReport() {
@@ -1563,9 +1641,13 @@
           if (sortCodeTo) {
             payload.sortCodeTo = sortCodeTo;
           }
-          const headerNumber = headerNumberInput.value.trim();
-          if (headerNumber) {
-            payload.headerNumber = headerNumber;
+          const headerNumberFrom = headerNumberFromInput.value.trim();
+          const headerNumberTo = headerNumberToInput.value.trim();
+          if (headerNumberFrom) {
+            payload.headerNumberFrom = headerNumberFrom;
+          }
+          if (headerNumberTo) {
+            payload.headerNumberTo = headerNumberTo;
           }
           const response = await fetch(`${baseUrl}/reports/${reportType}`, {
             method: "POST",

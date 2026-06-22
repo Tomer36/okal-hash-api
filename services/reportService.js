@@ -65,21 +65,24 @@ function loadReportTemplate(filePath, input, reportType) {
 
     if (
       reportType === "174" &&
-      input?.headerNumber &&
+      input?.headerNumberFrom &&
       param?.type === "long" &&
       param?.name?.includes(HEADER_NUMBER_FIELD_NAME)
     ) {
-      return { ...param, defVal: String(input.headerNumber) };
+      return { ...param, defVal: String(input.headerNumberFrom) };
     }
 
     if (
       reportType === "197" &&
-      input?.headerNumber &&
       param?.type === "long" &&
-      param?.name?.includes(HEADER_NUMBER_FIELD_NAME) &&
-      param?.opOrigin === "from"
+      param?.name?.includes(HEADER_NUMBER_FIELD_NAME)
     ) {
-      return { ...param, defVal: String(input.headerNumber) };
+      if (param?.opOrigin === "from" && input?.headerNumberFrom) {
+        return { ...param, defVal: String(input.headerNumberFrom) };
+      }
+      if (param?.opOrigin === "to" && input?.headerNumberTo) {
+        return { ...param, defVal: String(input.headerNumberTo) };
+      }
     }
 
     if (param?.type === "date") {
@@ -261,7 +264,8 @@ export async function getReport(type, payload) {
       invoiceNumber: payload?.invoiceNumber,
       sortCodeFrom: payload?.sortCodeFrom,
       sortCodeTo: payload?.sortCodeTo,
-      headerNumber: payload?.headerNumber,
+      headerNumberFrom: payload?.headerNumberFrom || payload?.headerNumber,
+      headerNumberTo: payload?.headerNumberTo,
     },
     type
   );

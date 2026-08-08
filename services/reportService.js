@@ -10,15 +10,72 @@ const STATION = config.get("configs.STATION");
 const COMPANY = config.get("configs.COMPANY");
 const NET_PASSPORT_ID = config.get("configs.NET_PASSPORT_ID");
 
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const DEFAULT_UPSTREAM_TIMEOUT_MS = positiveInteger(
+  process.env.HASH_UPSTREAM_TIMEOUT_MS,
+  175000
+);
+const INTERACTIVE_UPSTREAM_TIMEOUT_MS = positiveInteger(
+  process.env.HASH_INTERACTIVE_UPSTREAM_TIMEOUT_MS,
+  25000
+);
+const MAX_CONCURRENT_REQUESTS = positiveInteger(
+  process.env.HASH_MAX_CONCURRENT_REQUESTS,
+  3
+);
+
+const reportTemplateCache = new Map();
+let activeUpstreamRequests = 0;
+const upstreamWaiters = [];
+const SHORT_TIMEOUT_REPORT_TYPES = new Set(["175", "176", "181", "184", "185"]);
+
 /* -------------------- HELPERS -------------------- */
 function parseReportFile(filePath) {
+  const modifiedAt = fs.statSync(filePath).mtimeMs;
+  const cached = reportTemplateCache.get(filePath);
+  if (cached?.modifiedAt === modifiedAt) {
+    return JSON.parse(JSON.stringify(cached.template));
+  }
+
   const raw = fs.readFileSync(filePath, "utf8").trim();
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    return JSON.parse(raw);
+  const template = start === -1 || end === -1 || end <= start
+    ? JSON.parse(raw)
+    : JSON.parse(raw.slice(start, end + 1));
+  reportTemplateCache.set(filePath, { modifiedAt, template });
+  return JSON.parse(JSON.stringify(template));
+}
+
+async function withUpstreamSlot(operation, reportType) {
+  const queuedAt = Date.now();
+  let waitedForSlot = false;
+  if (activeUpstreamRequests >= MAX_CONCURRENT_REQUESTS) {
+    waitedForSlot = true;
+    await new Promise((resolve) => upstreamWaiters.push(resolve));
+  } else {
+    activeUpstreamRequests += 1;
   }
-  return JSON.parse(raw.slice(start, end + 1));
+
+  const queueWaitMs = Date.now() - queuedAt;
+  if (waitedForSlot && queueWaitMs >= 1000) {
+    console.warn(`[hashAPI] report ${reportType} waited ${queueWaitMs}ms for an upstream slot`);
+  }
+
+  try {
+    return await operation();
+  } finally {
+    const next = upstreamWaiters.shift();
+    if (next) {
+      next();
+    } else {
+      activeUpstreamRequests -= 1;
+    }
+  }
 }
 
 const CLIENT_OP_NAME = "שווה";
@@ -242,6 +299,7 @@ function processReport200(data) {
 
 /* -------------------- MAIN SERVICE -------------------- */
 export async function getReport(type, payload) {
+  const startedAt = Date.now();
   const templatePath = `./reports/${type}.txt`;
 
   if (!fs.existsSync(templatePath)) {
@@ -283,9 +341,18 @@ export async function getReport(type, payload) {
     signature,
   };
 
-  const response = await axios.post(API_URL, requestPayload, {
+  const upstreamTimeoutMs = SHORT_TIMEOUT_REPORT_TYPES.has(String(type))
+    ? INTERACTIVE_UPSTREAM_TIMEOUT_MS
+    : DEFAULT_UPSTREAM_TIMEOUT_MS;
+  const response = await withUpstreamSlot(() => axios.post(API_URL, requestPayload, {
     headers: { "Content-Type": "application/json" },
-  });
+    timeout: upstreamTimeoutMs,
+  }), type);
+
+  const durationMs = Date.now() - startedAt;
+  if (durationMs >= 5000) {
+    console.log(`[hashAPI] report ${type} completed in ${durationMs}ms`);
+  }
 
   const result = response?.data?.apiRes?.data;
 

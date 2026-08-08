@@ -5,9 +5,12 @@ const router = express.Router();
 
 router.post("/:type", async (req, res) => {
   const { type } = req.params;
+  const priority = String(req.get("x-hash-priority") || "interactive").toLowerCase() === "background"
+    ? "background"
+    : "interactive";
 
   try {
-    const data = await getReport(type, req.body);
+    const data = await getReport(type, req.body, { priority });
     res.json(data);
   } catch (err) {
     console.error("❌ Report Error:", err.message);

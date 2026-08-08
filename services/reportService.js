@@ -25,12 +25,18 @@ const INTERACTIVE_UPSTREAM_TIMEOUT_MS = positiveInteger(
 );
 const MAX_CONCURRENT_REQUESTS = positiveInteger(
   process.env.HASH_MAX_CONCURRENT_REQUESTS,
-  3
+  5
+);
+const MAX_BACKGROUND_REQUESTS = Math.min(
+  MAX_CONCURRENT_REQUESTS,
+  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 2)
 );
 
 const reportTemplateCache = new Map();
 let activeUpstreamRequests = 0;
-const upstreamWaiters = [];
+let activeBackgroundRequests = 0;
+const interactiveWaiters = [];
+const backgroundWaiters = [];
 const SHORT_TIMEOUT_REPORT_TYPES = new Set(["175", "176", "181", "184", "185"]);
 
 /* -------------------- HELPERS -------------------- */
@@ -51,30 +57,61 @@ function parseReportFile(filePath) {
   return JSON.parse(JSON.stringify(template));
 }
 
-async function withUpstreamSlot(operation, reportType) {
+function reserveUpstreamSlot(isBackground) {
+  activeUpstreamRequests += 1;
+  if (isBackground) activeBackgroundRequests += 1;
+}
+
+function canReserveUpstreamSlot(isBackground) {
+  return activeUpstreamRequests < MAX_CONCURRENT_REQUESTS
+    && (!isBackground || activeBackgroundRequests < MAX_BACKGROUND_REQUESTS);
+}
+
+function drainUpstreamQueue() {
+  while (activeUpstreamRequests < MAX_CONCURRENT_REQUESTS) {
+    let next = null;
+    if (interactiveWaiters.length > 0) {
+      next = interactiveWaiters.shift();
+    } else if (
+      backgroundWaiters.length > 0
+      && activeBackgroundRequests < MAX_BACKGROUND_REQUESTS
+    ) {
+      next = backgroundWaiters.shift();
+    }
+
+    if (!next) return;
+    reserveUpstreamSlot(next.isBackground);
+    next.resolve();
+  }
+}
+
+async function withUpstreamSlot(operation, reportType, priority = "interactive") {
   const queuedAt = Date.now();
+  const isBackground = priority === "background";
   let waitedForSlot = false;
-  if (activeUpstreamRequests >= MAX_CONCURRENT_REQUESTS) {
+  if (!canReserveUpstreamSlot(isBackground)) {
     waitedForSlot = true;
-    await new Promise((resolve) => upstreamWaiters.push(resolve));
+    await new Promise((resolve) => {
+      const waiter = { resolve, isBackground };
+      (isBackground ? backgroundWaiters : interactiveWaiters).push(waiter);
+    });
   } else {
-    activeUpstreamRequests += 1;
+    reserveUpstreamSlot(isBackground);
   }
 
   const queueWaitMs = Date.now() - queuedAt;
   if (waitedForSlot && queueWaitMs >= 1000) {
-    console.warn(`[hashAPI] report ${reportType} waited ${queueWaitMs}ms for an upstream slot`);
+    console.warn(
+      `[hashAPI] ${priority} report ${reportType} waited ${queueWaitMs}ms for an upstream slot`
+    );
   }
 
   try {
     return await operation();
   } finally {
-    const next = upstreamWaiters.shift();
-    if (next) {
-      next();
-    } else {
-      activeUpstreamRequests -= 1;
-    }
+    activeUpstreamRequests -= 1;
+    if (isBackground) activeBackgroundRequests -= 1;
+    drainUpstreamQueue();
   }
 }
 
@@ -298,7 +335,7 @@ function processReport200(data) {
 }
 
 /* -------------------- MAIN SERVICE -------------------- */
-export async function getReport(type, payload) {
+export async function getReport(type, payload, { priority = "interactive" } = {}) {
   const startedAt = Date.now();
   const templatePath = `./reports/${type}.txt`;
 
@@ -347,7 +384,7 @@ export async function getReport(type, payload) {
   const response = await withUpstreamSlot(() => axios.post(API_URL, requestPayload, {
     headers: { "Content-Type": "application/json" },
     timeout: upstreamTimeoutMs,
-  }), type);
+  }), type, priority);
 
   const durationMs = Date.now() - startedAt;
   if (durationMs >= 5000) {

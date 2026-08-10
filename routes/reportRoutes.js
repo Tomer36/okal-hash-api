@@ -14,7 +14,8 @@ router.post("/:type", async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("❌ Report Error:", err.message);
-    res.status(500).json({ error: err.message });
+    const statusCode = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+    res.status(statusCode).json({ error: err.message });
   }
 });
 

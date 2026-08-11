@@ -18,8 +18,8 @@
         margin: 0;
         min-height: 100vh;
         font-family: "Segoe UI", Tahoma, sans-serif;
-        background: linear-gradient(160deg, #eef2f7 0%, #e8edf5 100%);
-        color: #102a43;
+        background: #f6f1ea;
+        color: #222;
       }
       .wrap {
         min-height: 100vh;
@@ -27,11 +27,11 @@
         margin: 0 auto;
         padding: 36px 28px 44px;
         background:
-          radial-gradient(circle at top right, rgba(25, 118, 210, 0.10), transparent 30%),
-          linear-gradient(180deg, #f8fbff, #eef3f8);
+          radial-gradient(circle at top right, rgba(234, 223, 206, 0.6), transparent 28%),
+          linear-gradient(180deg, #fffaf4, #f8f2e9);
         border: 0;
         border-radius: 28px;
-        box-shadow: 0 20px 55px rgba(16, 42, 67, 0.09);
+        box-shadow: 0 24px 60px rgba(91, 65, 37, 0.08);
       }
       .page-header {
         display: flex;
@@ -47,7 +47,7 @@
         margin: 0;
         font-size: 34px;
         line-height: 1.05;
-        color: #102a43;
+        color: #2e2217;
       }
       .layout {
         display: grid;
@@ -55,18 +55,18 @@
       }
       .control-panel,
       .results-panel {
-        background: rgba(255, 255, 255, 0.94);
-        border: 1px solid #d5e0ea;
+        background: rgba(255, 253, 249, 0.88);
+        border: 1px solid #e1d6c4;
         border-radius: 24px;
         padding: 24px;
-        box-shadow: 0 8px 24px rgba(16, 42, 67, 0.06);
+        box-shadow: 0 10px 30px rgba(96, 71, 43, 0.05);
         backdrop-filter: blur(8px);
       }
       .panel-title {
         margin: 0 0 var(--space-2);
         font-size: 16px;
         font-weight: 700;
-        color: #263f57;
+        color: #3f2d1f;
       }
       .field-grid {
         display: grid;
@@ -78,8 +78,8 @@
         display: grid;
         gap: var(--space-3);
         padding: 18px;
-        background: linear-gradient(180deg, #ffffff, #f7fafd);
-        border: 1px solid #d7e1eb;
+        background: linear-gradient(180deg, #fffdfa, #fbf6ef);
+        border: 1px solid #e6dac9;
         border-radius: 20px;
       }
       .field.compact {
@@ -103,7 +103,7 @@
         width: 100%;
         padding: 12px 14px;
         font-size: 14px;
-        border: 1px solid #c9d5e1;
+        border: 1px solid #d8cdbb;
         border-radius: 14px;
         background: #fff;
         box-sizing: border-box;
@@ -137,9 +137,9 @@
         margin-top: var(--space-5);
         align-items: stretch;
         padding: 10px;
-        border: 1px solid #d5e0ea;
+        border: 1px solid #ddd2c1;
         border-radius: 18px;
-        background: linear-gradient(180deg, #ffffff, #f4f8fc);
+        background: linear-gradient(180deg, #fffdf9, #f6efe5);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
       }
       .actions button {
@@ -167,18 +167,6 @@
       }
       #runBtn::before {
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M5 4h10l4 4v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm9 1.5V9h3.5zM8 12h8v1.5H8zm0 3h8v1.5H8z'/%3E%3C/svg%3E");
-      }
-      #runBtn.loading::before {
-        width: 15px;
-        height: 15px;
-        border: 2px solid rgba(255, 255, 255, 0.45);
-        border-top-color: #fff;
-        border-radius: 50%;
-        background-image: none;
-        animation: report-button-spin 0.7s linear infinite;
-      }
-      @keyframes report-button-spin {
-        to { transform: rotate(360deg); }
       }
       #printBtn {
         display: none;
@@ -229,13 +217,13 @@
         display: grid;
         gap: 6px;
         padding: 14px 16px;
-        background: linear-gradient(180deg, #f8fbff, #eef5fb);
-        border: 1px solid #d5e2ee;
+        background: linear-gradient(180deg, rgba(255, 252, 246, 0.95), rgba(246, 238, 227, 0.92));
+        border: 1px solid #e3d6c5;
         border-radius: 18px;
       }
       .status {
         margin: 0;
-        color: #526d82;
+        color: #7a5b2f;
         min-height: 20px;
         line-height: 1.5;
       }
@@ -245,15 +233,15 @@
       pre {
         margin: 0;
         padding: 16px;
-        background: #f4f7fa;
-        border: 1px solid #d5e0ea;
+        background: #f2efe9;
+        border: 1px solid #e2d7c5;
         border-radius: 18px;
         overflow: auto;
       }
       .table-wrap {
         margin-top: 0;
         overflow: auto;
-        border: 1px solid #d5e0ea;
+        border: 1px solid #e2d7c5;
         border-radius: 18px;
         background: #fff;
       }
@@ -263,7 +251,7 @@
         margin-bottom: 8px;
         font-size: 20px;
         font-weight: 700;
-        color: #102a43;
+        color: #2f2418;
       }
       table {
         width: 100%;
@@ -277,13 +265,13 @@
         user-select: none;
       }
       th.sortable:hover {
-        background: #e8f1fa;
+        background: #eadfce;
       }
       th.sortable::before {
         content: "⇅";
         position: absolute;
         left: 10px;
-        color: #607d98;
+        color: #8a6a37;
         font-size: 12px;
       }
       th.sortable.sorted-asc::before {
@@ -307,15 +295,15 @@
         width: fit-content;
         margin-inline-start: auto;
         padding: 14px 22px;
-        background: linear-gradient(160deg, #f8fbff, #eaf2f9);
+        background: linear-gradient(160deg, #faf6ef, #ede3d4);
         border-radius: 14px;
-        border: 1px solid #c9d8e6;
-        box-shadow: 0 4px 12px rgba(16, 42, 67, 0.07);
+        border: 1px solid #d4c4ad;
+        box-shadow: 0 4px 12px rgba(91, 65, 37, 0.07);
       }
       .report-200-summary-label {
         font-weight: 600;
         white-space: nowrap;
-        color: #334e68;
+        color: #4a3520;
       }
       .report-200-summary-amount {
         font-variant-numeric: tabular-nums;
@@ -327,15 +315,15 @@
       .report-200-summary-final {
         font-size: 16px;
         font-weight: 700;
-        color: #102a43;
-        border-top: 1.5px solid #90a9bf;
+        color: #2a1a08;
+        border-top: 1.5px solid #bfa882;
         padding-top: 7px;
         margin-top: 2px;
       }
       th,
       td {
         padding: 8px 10px;
-        border-bottom: 1px solid #e2e9f0;
+        border-bottom: 1px solid #eee2d3;
         text-align: right;
         vertical-align: top;
       }
@@ -345,17 +333,13 @@
         unicode-bidi: plaintext;
       }
       th {
-        background: #edf3f8;
+        background: #f6efe6;
         font-weight: 700;
       }
       tbody tr:nth-child(even) {
-        background: #f8fafc;
+        background: #faf6f0;
       }
       @media print {
-        @page {
-          size: A4 portrait;
-          margin: 8mm;
-        }
         /* Hide everything except the results section */
         body {
           background: #fff;
@@ -407,16 +391,8 @@
         background: #fff;
         }
         table {
-          font-size: var(--print-font-size, 11px);
+          font-size: 11px;
           width: 100%;
-          max-width: 100%;
-          table-layout: auto;
-        }
-        th,
-        td {
-          padding: 5px 6px;
-          overflow-wrap: anywhere;
-          word-break: normal;
         }
         th {
           background: #f0f0f0 !important;
@@ -976,14 +952,6 @@
               ? [...fixedDataRows, ...sortableDataRows, ...totalRows]
               : arr;
         const displayRows = applyReport180Balance(rowsToRender, report180Columns);
-        const printFontSize = columns.length <= 6
-          ? "13px"
-          : columns.length <= 8
-            ? "12px"
-            : columns.length <= 12
-              ? "10px"
-              : "8.5px";
-        outputTable.style.setProperty("--print-font-size", printFontSize);
 
         const thead = document.createElement("thead");
         const headRow = document.createElement("tr");
@@ -1648,8 +1616,6 @@
         outputEl.style.display = "";
         outputTableWrap.style.display = "none";
         runBtn.disabled = true;
-        runBtn.classList.add("loading");
-        runBtn.textContent = "טוען דוח...";
 
         try {
           const payload = {};
@@ -1705,8 +1671,6 @@
           setPrintAvailability(false);
         } finally {
           runBtn.disabled = false;
-          runBtn.classList.remove("loading");
-          runBtn.textContent = "הצג דוח";
         }
       }
 

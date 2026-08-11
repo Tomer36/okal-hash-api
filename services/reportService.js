@@ -31,18 +31,8 @@ const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
   positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 2)
 );
-const MAX_QUEUE_LENGTH = positiveInteger(process.env.HASH_MAX_QUEUE_LENGTH, 100);
-const INTERACTIVE_QUEUE_TIMEOUT_MS = positiveInteger(
-  process.env.HASH_INTERACTIVE_QUEUE_TIMEOUT_MS,
-  30000
-);
-const BACKGROUND_QUEUE_TIMEOUT_MS = positiveInteger(
-  process.env.HASH_BACKGROUND_QUEUE_TIMEOUT_MS,
-  180000
-);
 
 const reportTemplateCache = new Map();
-const inFlightReports = new Map();
 let activeUpstreamRequests = 0;
 let activeBackgroundRequests = 0;
 const interactiveWaiters = [];
@@ -77,42 +67,16 @@ function canReserveUpstreamSlot(isBackground) {
     && (!isBackground || activeBackgroundRequests < MAX_BACKGROUND_REQUESTS);
 }
 
-function createServiceError(message, statusCode) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
-
-function takeNextWaiter(queue) {
-  while (queue.length > 0) {
-    const waiter = queue.shift();
-    if (waiter.settled) continue;
-    if (Date.now() >= waiter.deadlineAt) {
-      waiter.settled = true;
-      clearTimeout(waiter.timeoutId);
-      waiter.reject(createServiceError("Hash API queue deadline exceeded", 504));
-      continue;
-    }
-
-    waiter.settled = true;
-    clearTimeout(waiter.timeoutId);
-    return waiter;
-  }
-  return null;
-}
-
 function drainUpstreamQueue() {
   while (activeUpstreamRequests < MAX_CONCURRENT_REQUESTS) {
     let next = null;
     if (interactiveWaiters.length > 0) {
-      next = takeNextWaiter(interactiveWaiters);
-    }
-    if (
-      !next
-      && backgroundWaiters.length > 0
+      next = interactiveWaiters.shift();
+    } else if (
+      backgroundWaiters.length > 0
       && activeBackgroundRequests < MAX_BACKGROUND_REQUESTS
     ) {
-      next = takeNextWaiter(backgroundWaiters);
+      next = backgroundWaiters.shift();
     }
 
     if (!next) return;
@@ -126,32 +90,10 @@ async function withUpstreamSlot(operation, reportType, priority = "interactive")
   const isBackground = priority === "background";
   let waitedForSlot = false;
   if (!canReserveUpstreamSlot(isBackground)) {
-    if (interactiveWaiters.length + backgroundWaiters.length >= MAX_QUEUE_LENGTH) {
-      throw createServiceError("Hash API queue is full", 503);
-    }
-
     waitedForSlot = true;
-    const queue = isBackground ? backgroundWaiters : interactiveWaiters;
-    const queueTimeoutMs = isBackground
-      ? BACKGROUND_QUEUE_TIMEOUT_MS
-      : INTERACTIVE_QUEUE_TIMEOUT_MS;
-    await new Promise((resolve, reject) => {
-      const waiter = {
-        resolve,
-        reject,
-        isBackground,
-        deadlineAt: Date.now() + queueTimeoutMs,
-        settled: false,
-        timeoutId: null,
-      };
-      waiter.timeoutId = setTimeout(() => {
-        if (waiter.settled) return;
-        waiter.settled = true;
-        const index = queue.indexOf(waiter);
-        if (index !== -1) queue.splice(index, 1);
-        reject(createServiceError("Hash API queue deadline exceeded", 504));
-      }, queueTimeoutMs);
-      queue.push(waiter);
+    await new Promise((resolve) => {
+      const waiter = { resolve, isBackground };
+      (isBackground ? backgroundWaiters : interactiveWaiters).push(waiter);
     });
   } else {
     reserveUpstreamSlot(isBackground);
@@ -171,22 +113,6 @@ async function withUpstreamSlot(operation, reportType, priority = "interactive")
     if (isBackground) activeBackgroundRequests -= 1;
     drainUpstreamQueue();
   }
-}
-
-function stableStringify(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) => (
-      `${JSON.stringify(key)}:${stableStringify(value[key])}`
-    )).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function reportRequestKey(type, payload) {
-  return `${String(type)}:${stableStringify(payload ?? {})}`;
 }
 
 const CLIENT_OP_NAME = "שווה";
@@ -409,7 +335,7 @@ function processReport200(data) {
 }
 
 /* -------------------- MAIN SERVICE -------------------- */
-async function fetchReport(type, payload, priority) {
+export async function getReport(type, payload, { priority = "interactive" } = {}) {
   const startedAt = Date.now();
   const templatePath = `./reports/${type}.txt`;
 
@@ -474,20 +400,4 @@ async function fetchReport(type, payload, priority) {
   const normalized = normalizeReportData(result);
   if (type === "200") return processReport200(normalized);
   return normalized;
-}
-
-export function getReport(type, payload, { priority = "interactive" } = {}) {
-  const requestKey = reportRequestKey(type, payload);
-  const existingRequest = inFlightReports.get(requestKey);
-  if (existingRequest) return existingRequest;
-
-  const request = fetchReport(type, payload, priority);
-  inFlightReports.set(requestKey, request);
-  const removeInFlightRequest = () => {
-    if (inFlightReports.get(requestKey) === request) {
-      inFlightReports.delete(requestKey);
-    }
-  };
-  request.then(removeInFlightRequest, removeInFlightRequest);
-  return request;
 }

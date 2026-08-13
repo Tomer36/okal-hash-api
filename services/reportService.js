@@ -25,11 +25,11 @@ const INTERACTIVE_UPSTREAM_TIMEOUT_MS = positiveInteger(
 );
 const MAX_CONCURRENT_REQUESTS = positiveInteger(
   process.env.HASH_MAX_CONCURRENT_REQUESTS,
-  5
+  7
 );
 const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
-  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 2)
+  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 3)
 );
 
 const reportTemplateCache = new Map();

@@ -31,6 +31,15 @@ const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
   positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 3)
 );
+const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
+  || "http://localhost:3001/api/internal/upstream-log";
+
+// Fire-and-forget — surfaces slot-wait/slow-call events in the app's own
+// /logs page instead of only this process's console. Never let a logging
+// call add latency or fail the actual report request.
+function postUpstreamLog(payload) {
+  axios.post(AUTH_SERVICE_LOG_URL, payload, { timeout: 3000 }).catch(() => {});
+}
 
 const reportTemplateCache = new Map();
 let activeUpstreamRequests = 0;
@@ -104,6 +113,7 @@ async function withUpstreamSlot(operation, reportType, priority = "interactive")
     console.warn(
       `[hashAPI] ${priority} report ${reportType} waited ${queueWaitMs}ms for an upstream slot`
     );
+    postUpstreamLog({ reportType, priority, queueWaitMs });
   }
 
   try {
@@ -389,6 +399,7 @@ export async function getReport(type, payload, { priority = "interactive" } = {}
   const durationMs = Date.now() - startedAt;
   if (durationMs >= 5000) {
     console.log(`[hashAPI] report ${type} completed in ${durationMs}ms`);
+    postUpstreamLog({ reportType: type, priority, durationMs });
   }
 
   const result = response?.data?.apiRes?.data;

@@ -1,4 +1,5 @@
 import fs from "fs";
+import https from "https";
 import axios from "axios";
 import crypto from "crypto";
 import config from "config";
@@ -40,6 +41,28 @@ const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
 function postUpstreamLog(payload) {
   axios.post(AUTH_SERVICE_LOG_URL, payload, { timeout: 3000 }).catch(() => {});
 }
+
+// Periodic health snapshot: in-app queue state plus the actual live socket
+// count Node is holding open to Hashavshevet (via the default https agent —
+// axios uses it since no custom agent is configured). If this climbs over a
+// day and never drops back near zero between bursts, that's a real
+// connection leak, confirmed directly instead of guessed from restart timing.
+function logHealthSnapshot() {
+  const socketCounts = Object.values(https.globalAgent.sockets || {})
+    .reduce((sum, arr) => sum + arr.length, 0);
+  const freeSocketCounts = Object.values(https.globalAgent.freeSockets || {})
+    .reduce((sum, arr) => sum + arr.length, 0);
+  postUpstreamLog({
+    healthSnapshot: true,
+    activeUpstreamRequests,
+    activeBackgroundRequests,
+    interactiveWaiting: interactiveWaiters.length,
+    backgroundWaiting: backgroundWaiters.length,
+    activeSockets: socketCounts,
+    freeSockets: freeSocketCounts
+  });
+}
+setInterval(logHealthSnapshot, 15 * 60 * 1000).unref?.();
 
 const reportTemplateCache = new Map();
 let activeUpstreamRequests = 0;

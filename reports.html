@@ -562,12 +562,14 @@
         { id: "198", name: "API אינדקס לקוחות", needsClient: false },
         { id: "200", name: "העתק חשבונית לפי מס חשבונית", needsClient: false },
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
+        { id: "225", name: "אינדקס מסמכים לפי תאריך אסמכתא", needsClient: false },
       ];
 
-      const dateRangeReports = new Set(["182", "192", "197", "198"]);
+      const dateRangeReports = new Set(["182", "192", "197", "198", "225"]);
       const dateFromOnlyReports = new Set(["175", "181"]);
       const fixedDateRangeReports = new Map([
         ["198", { from: "2020-01-01", to: "2194-12-31" }],
+        ["225", { from: "1970-01-01", to: "2194-12-31" }],
       ]);
       const invoiceReports = new Set(["200"]);
       const sortCodeRangeReports = new Set(["175"]);

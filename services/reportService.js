@@ -33,7 +33,7 @@ const MAX_BACKGROUND_REQUESTS = Math.min(
   positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 3)
 );
 const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
-  || "http://localhost:3001/api/internal/upstream-log";
+  || "http://localhost:3000/api/internal/upstream-log";
 
 // Fire-and-forget — surfaces slot-wait/slow-call events in the app's own
 // /logs page instead of only this process's console. Never let a logging

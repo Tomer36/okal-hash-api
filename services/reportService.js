@@ -26,11 +26,11 @@ const INTERACTIVE_UPSTREAM_TIMEOUT_MS = positiveInteger(
 );
 const MAX_CONCURRENT_REQUESTS = positiveInteger(
   process.env.HASH_MAX_CONCURRENT_REQUESTS,
-  7
+  4
 );
 const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
-  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 3)
+  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 1)
 );
 const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
   || "http://localhost:3000/api/internal/upstream-log";

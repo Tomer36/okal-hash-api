@@ -32,6 +32,12 @@ const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
   positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 1)
 );
+// Bounds on waiting for one of the few upstream slots. Without these the wait queue had no
+// ceiling and no way out: a slow upstream turned into an ever-growing backlog of callers that
+// had long since timed out downstream. Failing fast with 503 is far better than queueing a
+// request nobody is still waiting for.
+const MAX_QUEUE_DEPTH = positiveInteger(process.env.HASH_MAX_QUEUE_DEPTH, 100);
+const MAX_SLOT_WAIT_MS = positiveInteger(process.env.HASH_MAX_SLOT_WAIT_MS, 60000);
 const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
   || "http://localhost:3000/api/internal/upstream-log";
 
@@ -113,7 +119,13 @@ function drainUpstreamQueue() {
 
     if (!next) return;
     reserveUpstreamSlot(next.isBackground);
-    next.resolve();
+    if (!next.grant()) {
+      // The waiter gave up (timed out) before its turn came. Hand the slot we just reserved
+      // back and keep draining, otherwise every abandoned waiter would permanently burn one
+      // of the few upstream slots.
+      activeUpstreamRequests -= 1;
+      if (next.isBackground) activeBackgroundRequests -= 1;
+    }
   }
 }
 
@@ -122,10 +134,40 @@ async function withUpstreamSlot(operation, reportType, priority = "interactive")
   const isBackground = priority === "background";
   let waitedForSlot = false;
   if (!canReserveUpstreamSlot(isBackground)) {
+    const queue = isBackground ? backgroundWaiters : interactiveWaiters;
+    // Previously this queue was unbounded and a waiter could never give up: if upstream went
+    // slow, requests piled in forever, callers that had already timed out downstream stayed
+    // parked, and each one still consumed a slot later to fetch a report nobody was waiting
+    // for. Shed load explicitly instead of queueing without limit.
+    if (queue.length >= MAX_QUEUE_DEPTH) {
+      const err = new Error(
+        `Upstream queue is full (${queue.length} ${priority} requests waiting)`
+      );
+      err.status = 503;
+      throw err;
+    }
     waitedForSlot = true;
-    await new Promise((resolve) => {
-      const waiter = { resolve, isBackground };
-      (isBackground ? backgroundWaiters : interactiveWaiters).push(waiter);
+    await new Promise((resolve, reject) => {
+      const waiter = { isBackground, settled: false };
+      const timer = setTimeout(() => {
+        if (waiter.settled) return;
+        waiter.settled = true;
+        const index = queue.indexOf(waiter);
+        if (index !== -1) queue.splice(index, 1);
+        const err = new Error(
+          `Timed out after ${MAX_SLOT_WAIT_MS}ms waiting for an upstream slot`
+        );
+        err.status = 503;
+        reject(err);
+      }, MAX_SLOT_WAIT_MS);
+      waiter.grant = () => {
+        if (waiter.settled) return false;
+        waiter.settled = true;
+        clearTimeout(timer);
+        resolve();
+        return true;
+      };
+      queue.push(waiter);
     });
   } else {
     reserveUpstreamSlot(isBackground);

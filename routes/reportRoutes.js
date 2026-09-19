@@ -14,7 +14,10 @@ router.post("/:type", async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error("❌ Report Error:", err.message);
-    res.status(500).json({ error: err.message });
+    // Load shedding from the upstream queue sets err.status = 503: that is "we are saturated,
+    // retry later", not "this request is broken". Callers can only back off sensibly if the
+    // distinction survives to them instead of being flattened into a blanket 500.
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

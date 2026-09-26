@@ -1170,7 +1170,11 @@
         const rowCount = Array.isArray(firstArray) ? firstArray.length : 0;
         if (reportTypeSelect.value === "183" && Array.isArray(firstArray)) {
           const debitField = "חובה שקל";
-          const creditField = "זכות שקל";
+          // "זכות שקל" is sent empty by Hashavshevet for this report — the actual credit value
+          // lives in "סכום שקל סגור בתנועה", already negative when it reduces the balance. Confirmed
+          // against the client's own aging report (2026-09): adding it (not subtracting) reproduces
+          // their יתרת החוב column exactly.
+          const creditField = "סכום שקל סגור בתנועה";
           const balanceField = "יתרה";
           const removeField = "סכום שקל פתוח בתנועה";
           let runningBalance = 0;
@@ -1181,7 +1185,7 @@
             const debit = parseSummableNumber(row[debitField]) ?? 0;
             const credit = parseSummableNumber(row[creditField]) ?? 0;
             runningBalance = roundCurrencyValue(
-              runningBalance + debit - credit
+              runningBalance + debit + credit
             );
             // Build new row with balanceField replacing removeField in the same position
             const entries = Object.entries(row);
@@ -1237,7 +1241,7 @@
             const debitTotal = parseSummableNumber(totalsRow[debitField]) ?? 0;
             const creditTotal = parseSummableNumber(totalsRow[creditField]) ?? 0;
             totalsRow[balanceField] = formatSummedNumber(
-              roundCurrencyValue(debitTotal - creditTotal)
+              roundCurrencyValue(debitTotal + creditTotal)
             );
             if (totalLabelField) {
               totalsRow[totalLabelField] = 'סה"כ';

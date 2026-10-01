@@ -3,6 +3,7 @@ import https from "https";
 import axios from "axios";
 import crypto from "crypto";
 import config from "config";
+import { Resilience } from './resilience.mjs';
 
 /* -------------------- CONFIG -------------------- */
 const API_URL = config.get("configs.API_URL");
@@ -36,16 +37,20 @@ const MAX_BACKGROUND_REQUESTS = Math.min(
 // ceiling and no way out: a slow upstream turned into an ever-growing backlog of callers that
 // had long since timed out downstream. Failing fast with 503 is far better than queueing a
 // request nobody is still waiting for.
-const MAX_QUEUE_DEPTH = positiveInteger(process.env.HASH_MAX_QUEUE_DEPTH, 100);
-const MAX_SLOT_WAIT_MS = positiveInteger(process.env.HASH_MAX_SLOT_WAIT_MS, 60000);
+const MAX_QUEUE_DEPTH = positiveInteger(process.env.HASH_MAX_QUEUE_DEPTH, 24);
+const MAX_SLOT_WAIT_MS = positiveInteger(process.env.HASH_MAX_SLOT_WAIT_MS, 1500);
 const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
   || "http://localhost:3000/api/internal/upstream-log";
 
 // Fire-and-forget — surfaces slot-wait/slow-call events in the app's own
 // /logs page instead of only this process's console. Never let a logging
 // call add latency or fail the actual report request.
+let pendingLogWrites = 0;
 function postUpstreamLog(payload) {
-  axios.post(AUTH_SERVICE_LOG_URL, payload, { timeout: 3000 }).catch(() => {});
+  if (pendingLogWrites >= 8) return;
+  pendingLogWrites++;
+  axios.post(AUTH_SERVICE_LOG_URL, payload, { timeout: 3000 })
+    .catch(() => {}).finally(() => { pendingLogWrites--; });
 }
 
 // Periodic health snapshot: in-app queue state plus the actual live socket
@@ -60,10 +65,7 @@ function logHealthSnapshot() {
     .reduce((sum, arr) => sum + arr.length, 0);
   postUpstreamLog({
     healthSnapshot: true,
-    activeUpstreamRequests,
-    activeBackgroundRequests,
-    interactiveWaiting: interactiveWaiters.length,
-    backgroundWaiting: backgroundWaiters.length,
+    ...resilience.stats(),
     activeSockets: socketCounts,
     freeSockets: freeSocketCounts
   });
@@ -71,11 +73,17 @@ function logHealthSnapshot() {
 setInterval(logHealthSnapshot, 15 * 60 * 1000).unref?.();
 
 const reportTemplateCache = new Map();
-let activeUpstreamRequests = 0;
-let activeBackgroundRequests = 0;
-const interactiveWaiters = [];
-const backgroundWaiters = [];
-const SHORT_TIMEOUT_REPORT_TYPES = new Set(["175", "176", "181", "184", "185"]);
+const ESSENTIAL_REPORT_TYPES = new Set(['181', '184', '185']);
+const resilience = new Resilience({
+  max: MAX_CONCURRENT_REQUESTS,
+  backgroundMax: MAX_BACKGROUND_REQUESTS,
+  perReportMax: positiveInteger(process.env.HASH_MAX_REQUESTS_PER_REPORT, 2),
+  queueMax: MAX_QUEUE_DEPTH,
+  queueWaitMs: MAX_SLOT_WAIT_MS,
+  threshold: positiveInteger(process.env.HASH_BREAKER_FAILURE_THRESHOLD, 5),
+  cooldownMs: positiveInteger(process.env.HASH_BREAKER_COOLDOWN_MS, 15000),
+  onEvent: event => postUpstreamLog({ resilience: true, ...event })
+});
 
 /* -------------------- HELPERS -------------------- */
 function parseReportFile(filePath) {
@@ -95,100 +103,6 @@ function parseReportFile(filePath) {
   return JSON.parse(JSON.stringify(template));
 }
 
-function reserveUpstreamSlot(isBackground) {
-  activeUpstreamRequests += 1;
-  if (isBackground) activeBackgroundRequests += 1;
-}
-
-function canReserveUpstreamSlot(isBackground) {
-  return activeUpstreamRequests < MAX_CONCURRENT_REQUESTS
-    && (!isBackground || activeBackgroundRequests < MAX_BACKGROUND_REQUESTS);
-}
-
-function drainUpstreamQueue() {
-  while (activeUpstreamRequests < MAX_CONCURRENT_REQUESTS) {
-    let next = null;
-    if (interactiveWaiters.length > 0) {
-      next = interactiveWaiters.shift();
-    } else if (
-      backgroundWaiters.length > 0
-      && activeBackgroundRequests < MAX_BACKGROUND_REQUESTS
-    ) {
-      next = backgroundWaiters.shift();
-    }
-
-    if (!next) return;
-    reserveUpstreamSlot(next.isBackground);
-    if (!next.grant()) {
-      // The waiter gave up (timed out) before its turn came. Hand the slot we just reserved
-      // back and keep draining, otherwise every abandoned waiter would permanently burn one
-      // of the few upstream slots.
-      activeUpstreamRequests -= 1;
-      if (next.isBackground) activeBackgroundRequests -= 1;
-    }
-  }
-}
-
-async function withUpstreamSlot(operation, reportType, priority = "interactive") {
-  const queuedAt = Date.now();
-  const isBackground = priority === "background";
-  let waitedForSlot = false;
-  if (!canReserveUpstreamSlot(isBackground)) {
-    const queue = isBackground ? backgroundWaiters : interactiveWaiters;
-    // Previously this queue was unbounded and a waiter could never give up: if upstream went
-    // slow, requests piled in forever, callers that had already timed out downstream stayed
-    // parked, and each one still consumed a slot later to fetch a report nobody was waiting
-    // for. Shed load explicitly instead of queueing without limit.
-    if (queue.length >= MAX_QUEUE_DEPTH) {
-      const err = new Error(
-        `Upstream queue is full (${queue.length} ${priority} requests waiting)`
-      );
-      err.status = 503;
-      throw err;
-    }
-    waitedForSlot = true;
-    await new Promise((resolve, reject) => {
-      const waiter = { isBackground, settled: false };
-      const timer = setTimeout(() => {
-        if (waiter.settled) return;
-        waiter.settled = true;
-        const index = queue.indexOf(waiter);
-        if (index !== -1) queue.splice(index, 1);
-        const err = new Error(
-          `Timed out after ${MAX_SLOT_WAIT_MS}ms waiting for an upstream slot`
-        );
-        err.status = 503;
-        reject(err);
-      }, MAX_SLOT_WAIT_MS);
-      waiter.grant = () => {
-        if (waiter.settled) return false;
-        waiter.settled = true;
-        clearTimeout(timer);
-        resolve();
-        return true;
-      };
-      queue.push(waiter);
-    });
-  } else {
-    reserveUpstreamSlot(isBackground);
-  }
-
-  const queueWaitMs = Date.now() - queuedAt;
-  if (waitedForSlot && queueWaitMs >= 1000) {
-    console.warn(
-      `[hashAPI] ${priority} report ${reportType} waited ${queueWaitMs}ms for an upstream slot`
-    );
-    postUpstreamLog({ reportType, priority, queueWaitMs });
-  }
-
-  try {
-    return await operation();
-  } finally {
-    activeUpstreamRequests -= 1;
-    if (isBackground) activeBackgroundRequests -= 1;
-    drainUpstreamQueue();
-  }
-}
 
 const CLIENT_OP_NAME = "שווה";
 const SORT_CODE_FIELD_NAME = "קוד מיון";
@@ -410,7 +324,7 @@ function processReport200(data) {
 }
 
 /* -------------------- MAIN SERVICE -------------------- */
-export async function getReport(type, payload, { priority = "interactive" } = {}) {
+export async function getReport(type, payload, { priority = "interactive", signal, deadline } = {}) {
   const startedAt = Date.now();
   const templatePath = `./reports/${type}.txt`;
 
@@ -453,13 +367,17 @@ export async function getReport(type, payload, { priority = "interactive" } = {}
     signature,
   };
 
-  const upstreamTimeoutMs = SHORT_TIMEOUT_REPORT_TYPES.has(String(type))
-    ? INTERACTIVE_UPSTREAM_TIMEOUT_MS
-    : DEFAULT_UPSTREAM_TIMEOUT_MS;
-  const response = await withUpstreamSlot(() => axios.post(API_URL, requestPayload, {
-    headers: { "Content-Type": "application/json" },
-    timeout: upstreamTimeoutMs,
-  }), type, priority);
+  const limit = priority === 'background' ? DEFAULT_UPSTREAM_TIMEOUT_MS : INTERACTIVE_UPSTREAM_TIMEOUT_MS;
+  const upstreamTimeoutMs = Math.min(limit, Number.isFinite(deadline) ? deadline - Date.now() : limit);
+  const lane = priority === 'background' ? 'background' : ESSENTIAL_REPORT_TYPES.has(String(type)) ? 'essential' : 'interactive';
+  // Share only identical report work in the same priority class; never mix tenants/payloads.
+  const key = crypto.createHash('sha256').update(JSON.stringify([type, priority, requestPayload])).digest('hex');
+  const response = await resilience.run(key, { report: type, lane, signal, timeoutMs: upstreamTimeoutMs },
+    upstreamSignal => axios.post(API_URL, requestPayload, {
+      headers: { "Content-Type": "application/json" },
+      timeout: Math.max(1, upstreamTimeoutMs),
+      signal: upstreamSignal
+    }));
 
   const durationMs = Date.now() - startedAt;
   if (durationMs >= 5000) {

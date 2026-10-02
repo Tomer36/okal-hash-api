@@ -1703,9 +1703,12 @@
           if (headerNumberTo) {
             payload.headerNumberTo = headerNumberTo;
           }
+          // Ad-hoc reports (often bulk: 175/176/198) run in the background lane, which allows
+          // up to 175s. Without this header they default to the 25s interactive budget meant
+          // for customer-card lookups, and large reports fail with "deadline exceeded".
           const response = await fetch(`${baseUrl}/reports/${reportType}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "X-Hash-Priority": "background" },
             body: JSON.stringify(payload),
           });
 

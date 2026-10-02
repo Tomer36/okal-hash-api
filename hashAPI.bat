@@ -3,11 +3,9 @@ title Hash API
 REM Change directory to the project path
 cd /d "C:\Users\Administrator\Documents\GitHub\okal-hash-api"
 
-REM Conservative upstream limits: protect Hashavshevet from background bursts.
+REM Upstream limits (concurrency, slot wait, breaker, log URL) live in config\default.json
+REM under "resilience". A HASH_* environment variable set here would override them.
 set NODE_ENV=production
-set HASH_MAX_CONCURRENT_REQUESTS=4
-set HASH_MAX_BACKGROUND_REQUESTS=1
-set AUTH_SERVICE_LOG_URL=http://localhost:3000/api/internal/upstream-log
 
 REM Restart the existing named process; start it only on first setup.
 pm2 restart hashAPI --update-env

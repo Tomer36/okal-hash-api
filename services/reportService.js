@@ -17,29 +17,32 @@ function positiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-const DEFAULT_UPSTREAM_TIMEOUT_MS = positiveInteger(
-  process.env.HASH_UPSTREAM_TIMEOUT_MS,
-  175000
-);
-const INTERACTIVE_UPSTREAM_TIMEOUT_MS = positiveInteger(
-  process.env.HASH_INTERACTIVE_UPSTREAM_TIMEOUT_MS,
+// Defaults live in config/default.json ("resilience"); a HASH_* environment variable still
+// overrides any of them (tests rely on this).
+function resilienceSetting(envName, configKey, fallback) {
+  const path = `resilience.${configKey}`;
+  return positiveInteger(process.env[envName], config.has(path) ? config.get(path) : fallback);
+}
+
+const DEFAULT_UPSTREAM_TIMEOUT_MS = resilienceSetting("HASH_UPSTREAM_TIMEOUT_MS", "UPSTREAM_TIMEOUT_MS", 175000);
+const INTERACTIVE_UPSTREAM_TIMEOUT_MS = resilienceSetting(
+  "HASH_INTERACTIVE_UPSTREAM_TIMEOUT_MS",
+  "INTERACTIVE_UPSTREAM_TIMEOUT_MS",
   25000
 );
-const MAX_CONCURRENT_REQUESTS = positiveInteger(
-  process.env.HASH_MAX_CONCURRENT_REQUESTS,
-  4
-);
+const MAX_CONCURRENT_REQUESTS = resilienceSetting("HASH_MAX_CONCURRENT_REQUESTS", "MAX_CONCURRENT_REQUESTS", 4);
 const MAX_BACKGROUND_REQUESTS = Math.min(
   MAX_CONCURRENT_REQUESTS,
-  positiveInteger(process.env.HASH_MAX_BACKGROUND_REQUESTS, 1)
+  resilienceSetting("HASH_MAX_BACKGROUND_REQUESTS", "MAX_BACKGROUND_REQUESTS", 1)
 );
 // Bounds on waiting for one of the few upstream slots. Without these the wait queue had no
 // ceiling and no way out: a slow upstream turned into an ever-growing backlog of callers that
 // had long since timed out downstream. Failing fast with 503 is far better than queueing a
 // request nobody is still waiting for.
-const MAX_QUEUE_DEPTH = positiveInteger(process.env.HASH_MAX_QUEUE_DEPTH, 24);
-const MAX_SLOT_WAIT_MS = positiveInteger(process.env.HASH_MAX_SLOT_WAIT_MS, 1500);
+const MAX_QUEUE_DEPTH = resilienceSetting("HASH_MAX_QUEUE_DEPTH", "MAX_QUEUE_DEPTH", 24);
+const MAX_SLOT_WAIT_MS = resilienceSetting("HASH_MAX_SLOT_WAIT_MS", "MAX_SLOT_WAIT_MS", 1500);
 const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
+  || (config.has("resilience.AUTH_SERVICE_LOG_URL") && config.get("resilience.AUTH_SERVICE_LOG_URL"))
   || "http://localhost:3000/api/internal/upstream-log";
 
 // Fire-and-forget — surfaces slot-wait/slow-call events in the app's own
@@ -77,11 +80,11 @@ const ESSENTIAL_REPORT_TYPES = new Set(['181', '184', '185']);
 const resilience = new Resilience({
   max: MAX_CONCURRENT_REQUESTS,
   backgroundMax: MAX_BACKGROUND_REQUESTS,
-  perReportMax: positiveInteger(process.env.HASH_MAX_REQUESTS_PER_REPORT, 2),
+  perReportMax: resilienceSetting("HASH_MAX_REQUESTS_PER_REPORT", "MAX_REQUESTS_PER_REPORT", 2),
   queueMax: MAX_QUEUE_DEPTH,
   queueWaitMs: MAX_SLOT_WAIT_MS,
-  threshold: positiveInteger(process.env.HASH_BREAKER_FAILURE_THRESHOLD, 5),
-  cooldownMs: positiveInteger(process.env.HASH_BREAKER_COOLDOWN_MS, 15000),
+  threshold: resilienceSetting("HASH_BREAKER_FAILURE_THRESHOLD", "BREAKER_FAILURE_THRESHOLD", 5),
+  cooldownMs: resilienceSetting("HASH_BREAKER_COOLDOWN_MS", "BREAKER_COOLDOWN_MS", 15000),
   onEvent: event => postUpstreamLog({ resilience: true, ...event })
 });
 

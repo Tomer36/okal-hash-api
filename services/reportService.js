@@ -110,6 +110,7 @@ function parseReportFile(filePath) {
 const CLIENT_OP_NAME = "שווה";
 const SORT_CODE_FIELD_NAME = "קוד מיון";
 const HEADER_NUMBER_FIELD_NAME = "מספר כותרת";
+const ACCOUNT_CARD_NUMBER_FIELD_NAME = "מספר כרטיס חשבון";
 
 function loadReportTemplate(filePath, input, reportType) {
   const report = parseReportFile(filePath);
@@ -147,6 +148,18 @@ function loadReportTemplate(filePath, input, reportType) {
       if (param?.opOrigin === "to" && input?.sortCodeTo) {
         return { ...param, defVal: String(input.sortCodeTo) };
       }
+    }
+
+    // Report 198 from a given internal card number onward: only the cards opened since then,
+    // instead of the full customer index.
+    if (
+      reportType === "198" &&
+      param?.type === "long" &&
+      param?.opOrigin === "from" &&
+      param?.name?.includes(ACCOUNT_CARD_NUMBER_FIELD_NAME) &&
+      /^\d+$/.test(String(input?.cardNumberFrom ?? ""))
+    ) {
+      return { ...param, defVal: String(input.cardNumberFrom) };
     }
 
     if (
@@ -353,6 +366,7 @@ export async function getReport(type, payload, { priority = "interactive", signa
       sortCodeTo: payload?.sortCodeTo,
       headerNumberFrom: payload?.headerNumberFrom || payload?.headerNumber,
       headerNumberTo: payload?.headerNumberTo,
+      cardNumberFrom: payload?.cardNumberFrom,
     },
     type
   );

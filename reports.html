@@ -204,6 +204,19 @@
       #printBtn:hover:not(:disabled) {
         background: #e7f2fe;
       }
+      #excelBtn {
+        display: none;
+        background: #fff;
+        color: #1d6f42;
+        border-color: #9fd3b4;
+        box-shadow: none;
+      }
+      #excelBtn::before {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231d6f42'%3E%3Cpath d='M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 2v3h6V5zm8 0v3h6V5zM5 10v3h6v-3zm8 0v3h6v-3zM5 15v4h6v-4zm8 0v4h6v-4z'/%3E%3C/svg%3E");
+      }
+      #excelBtn:hover:not(:disabled) {
+        background: #e8f5ee;
+      }
       @media (max-width: 640px) {
         .wrap {
           padding: 20px 14px 28px;
@@ -518,6 +531,7 @@
           <div class="actions">
         <button id="runBtn">הצג דוח</button>
         <span style="flex:1"></span>
+        <button id="excelBtn" type="button">אקסל</button>
         <button id="printBtn" type="button">הדפס</button>
       </div>
         </section>
@@ -539,6 +553,7 @@
       </div>
     </div>
 
+    <script src="xlsxExport.js"></script>
     <script>
       const reportCatalog = [
         { id: "174", name: "API פקודות יומן", needsClient: false },
@@ -594,6 +609,7 @@
       const reportTypeSelect = document.getElementById("reportType");
       const runBtn = document.getElementById("runBtn");
       const printBtn = document.getElementById("printBtn");
+      const excelBtn = document.getElementById("excelBtn");
       const printReportTitleEl = document.getElementById("printReportTitle");
       const statusEl = document.getElementById("status");
       const rowCountEl = document.getElementById("rowCount");
@@ -613,6 +629,28 @@
 
       function setPrintAvailability(isVisible) {
         printBtn.style.display = isVisible ? "inline-flex" : "none";
+        // Excel only for a report shown as a table, not as raw text.
+        const hasTable = isVisible && outputTableWrap.style.display !== "none";
+        excelBtn.style.display = hasTable ? "inline-flex" : "none";
+      }
+
+      // Saves the table as shown (its sort, rows and totals) as an Excel file named after the
+      // report, the client number when one was asked for, and today's date.
+      function exportReportToExcel() {
+        const { headers, rows } = window.ReportXlsx.readHtmlTable(outputTable);
+        if (headers.length === 0) {
+          setStatus("אין טבלה לייצוא.");
+          return;
+        }
+        const selectedOption = reportTypeSelect.options[reportTypeSelect.selectedIndex] || null;
+        const clientNumber = clientGroup.style.display === "none" ? "" : clientNumberInput.value.trim();
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const fileName = [selectedOption ? selectedOption.textContent : "דוח", clientNumber, today]
+          .filter(Boolean)
+          .join(" - ");
+        const blob = window.ReportXlsx.buildWorkbook({ sheetName: `דוח ${reportTypeSelect.value}`, headers, rows });
+        window.ReportXlsx.downloadWorkbook(blob, fileName);
       }
 
       function updatePrintReportTitle() {
@@ -1749,6 +1787,7 @@
       });
       runBtn.addEventListener("click", runReport);
       printBtn.addEventListener("click", printReport);
+      excelBtn.addEventListener("click", exportReportToExcel);
       document.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !runBtn.disabled) {
           runReport();

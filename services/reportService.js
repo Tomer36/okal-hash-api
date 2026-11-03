@@ -111,6 +111,17 @@ const CLIENT_OP_NAME = "שווה";
 const SORT_CODE_FIELD_NAME = "קוד מיון";
 const HEADER_NUMBER_FIELD_NAME = "מספר כותרת";
 const ACCOUNT_CARD_NUMBER_FIELD_NAME = "מספר כרטיס חשבון";
+const ACCOUNT_KEY_FIELD_NAME = "מפתח חשבון";
+
+// The client number goes only into an "equals" filter on the account key. Other "equals" text
+// filters (e.g. report 187's fixed counter account) keep the value set in the template.
+function isClientParam(param) {
+  return (
+    param?.type === "txt" &&
+    param?.opName === CLIENT_OP_NAME &&
+    String(param?.name ?? "").endsWith(ACCOUNT_KEY_FIELD_NAME)
+  );
+}
 
 function loadReportTemplate(filePath, input, reportType) {
   const report = parseReportFile(filePath);
@@ -124,7 +135,7 @@ function loadReportTemplate(filePath, input, reportType) {
   const dateTo = input?.dateTo || today;
 
   report.params_data = report.params_data.map((param) => {
-    if (param?.type === "txt" && param?.opName === CLIENT_OP_NAME) {
+    if (isClientParam(param)) {
       return { ...param, defVal: String(input.ID) };
     }
 
@@ -138,7 +149,7 @@ function loadReportTemplate(filePath, input, reportType) {
     }
 
     if (
-      ["175", "198", "226"].includes(reportType) &&
+      ["175", "198", "226", "227"].includes(reportType) &&
       param?.type === "long" &&
       param?.name?.includes(SORT_CODE_FIELD_NAME)
     ) {
@@ -205,9 +216,7 @@ function reportNeedsClient(report) {
     return false;
   }
 
-  return report.params_data.some(
-    (param) => param?.type === "txt" && param?.opName === CLIENT_OP_NAME
-  );
+  return report.params_data.some(isClientParam);
 }
 
 function createSignature(data) {

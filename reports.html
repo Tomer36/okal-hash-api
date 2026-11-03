@@ -579,16 +579,19 @@
         { id: "201", name: "לקוחות עם יתרה 0 עם אובליגו", needsClient: false },
         { id: "225", name: "אינדקס מסמכים לפי תאריך אסמכתא", needsClient: false },
         { id: "226", name: "API", needsClient: false },
+        { id: "227", name: "דוח 227", needsClient: false },
+        { id: "280", name: "דוח 280", needsClient: false },
       ];
 
-      const dateRangeReports = new Set(["182", "192", "197", "198", "225"]);
+      const dateRangeReports = new Set(["182", "192", "197", "198", "225", "227", "280"]);
       const dateFromOnlyReports = new Set(["175", "181"]);
       const fixedDateRangeReports = new Map([
         ["198", { from: "2020-01-01", to: "2194-12-31" }],
         ["225", { from: "1970-01-01", to: "2194-12-31" }],
+        ["227", { from: "1970-01-01", to: "2194-12-31" }],
       ]);
       const invoiceReports = new Set(["200"]);
-      const sortCodeRangeReports = new Set(["175", "226"]);
+      const sortCodeRangeReports = new Set(["175", "226", "227"]);
       const headerNumberReports = new Set(["174", "197"]);
       const headerNumberRangeReports = new Set(["197"]);
       const clientNumberInput = document.getElementById("clientNumber");

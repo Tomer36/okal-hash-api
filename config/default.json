@@ -11,12 +11,8 @@
         "BREAKER_COOLDOWN_MS": 15000,
         "AUTH_SERVICE_LOG_URL": "http://localhost:3000/api/internal/upstream-log"
     },
-  "configs": {
-    "HASH_PORT" : 6001,
-    "API_URL" : "https://ws.wizground.com/api",
-    "TOKEN" : "3EFE2B45E8407700AB4D20324B7D001B",
-    "STATION" : "fb3a7767-b991-42b8-8eb0-6d635901e01b",
-    "COMPANY" : "okelbro",
-    "NET_PASSPORT_ID" : "35893"
-  }
+    "configs": {
+        "HASH_PORT": 6001,
+        "API_URL": "https://ws.wizground.com/api"
+    }
 }

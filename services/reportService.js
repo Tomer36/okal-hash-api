@@ -4,6 +4,7 @@ import axios from "axios";
 import crypto from "crypto";
 import config from "config";
 import { Resilience } from './resilience.mjs';
+import { sendWithOneRetry } from './connectionRetry.mjs';
 
 /* -------------------- CONFIG -------------------- */
 const API_URL = config.get("configs.API_URL");
@@ -399,11 +400,21 @@ export async function getReport(type, payload, { priority = "interactive", signa
   // Share only identical report work in the same priority class; never mix tenants/payloads.
   const key = crypto.createHash('sha256').update(JSON.stringify([type, priority, requestPayload])).digest('hex');
   const response = await resilience.run(key, { report: type, lane, signal, timeoutMs: upstreamTimeoutMs },
-    upstreamSignal => axios.post(API_URL, requestPayload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: Math.max(1, upstreamTimeoutMs),
-      signal: upstreamSignal
-    }));
+    upstreamSignal => sendWithOneRetry(
+      (requestOptions) => axios.post(API_URL, requestPayload, {
+        headers: { "Content-Type": "application/json" },
+        signal: upstreamSignal,
+        ...requestOptions
+      }),
+      {
+        timeoutMs: upstreamTimeoutMs,
+        signal: upstreamSignal,
+        // Kept in the service log, so dropped connections stay visible after a successful retry.
+        onRetry: (error) => console.warn(
+          `[hashAPI] ${new Date().toISOString()} report ${type}: connection dropped (${error.code || error.message}), sending once more`
+        )
+      }
+    ));
 
   const durationMs = Date.now() - startedAt;
   if (durationMs >= 5000) {

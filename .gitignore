@@ -1,4 +1,1 @@
 node_modules/
-# Hashavshevet credentials: on the server only (see config/local.example.json)
-config/local.json
-config/local-*.json

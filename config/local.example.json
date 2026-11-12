@@ -1,8 +1,0 @@
-{
-    "configs": {
-        "TOKEN": "<token from Hashavshevet>",
-        "STATION": "<station id>",
-        "COMPANY": "<company code>",
-        "NET_PASSPORT_ID": "<net passport id>"
-    }
-}

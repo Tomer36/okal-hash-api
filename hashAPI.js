@@ -4,6 +4,7 @@ import bodyParser from "body-parser";
 import config from "config";
 import path from "path";
 import reportRoutes from "./routes/reportRoutes.js";
+import { PROVIDER_HOST } from "./services/reportService.js";
 
 const app = express();
 app.use(cors());
@@ -15,5 +16,5 @@ const PORT = config.get("configs.HASH_PORT");
 app.use("/reports", reportRoutes);
 
 app.listen(PORT, () => {
-  console.log(`✅ Hash microservice running on port ${PORT}`);
+  console.log(`✅ Hash microservice running on port ${PORT}, Hashavshevet server: ${PROVIDER_HOST}`);
 });

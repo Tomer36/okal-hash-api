@@ -72,5 +72,5 @@ test('a report whose connection the provider drops once still gets its answer', 
   const result = await getReport('183', { clientNumber: 'test-customer' });
   assert.ok(result, 'the report answered');
   assert.equal(hits, 2);
-  assert.match(warnings.join('\n'), /report 183: connection dropped \(ECONNRESET\), sending once more/);
+  assert.match(warnings.join('\n'), /report 183 \(127\.0\.0\.1:\d+\): connection dropped \(ECONNRESET\), sending once more/, 'names the Hashavshevet server in use');
 });

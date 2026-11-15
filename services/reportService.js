@@ -12,6 +12,8 @@ const TOKEN = config.get("configs.TOKEN");
 const STATION = config.get("configs.STATION");
 const COMPANY = config.get("configs.COMPANY");
 const NET_PASSPORT_ID = config.get("configs.NET_PASSPORT_ID");
+// The Hashavshevet server in use (production or test), named in the service log.
+export const PROVIDER_HOST = new URL(API_URL).host;
 
 function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -411,14 +413,14 @@ export async function getReport(type, payload, { priority = "interactive", signa
         signal: upstreamSignal,
         // Kept in the service log, so dropped connections stay visible after a successful retry.
         onRetry: (error) => console.warn(
-          `[hashAPI] ${new Date().toISOString()} report ${type}: connection dropped (${error.code || error.message}), sending once more`
+          `[hashAPI] ${new Date().toISOString()} report ${type} (${PROVIDER_HOST}): connection dropped (${error.code || error.message}), sending once more`
         )
       }
     ));
 
   const durationMs = Date.now() - startedAt;
   if (durationMs >= 5000) {
-    console.log(`[hashAPI] report ${type} completed in ${durationMs}ms`);
+    console.log(`[hashAPI] report ${type} (${PROVIDER_HOST}) completed in ${durationMs}ms`);
     postUpstreamLog({ reportType: type, priority, durationMs });
   }
 

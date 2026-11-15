@@ -49,8 +49,14 @@ test('no second try for other failures, a cancelled request, too little time, or
 
 test('a report whose connection the provider drops once still gets its answer', async (t) => {
   let hits = 0;
+  const logged = [];
   const provider = http.createServer((req, res) => {
-    if (req.url === '/logs') { req.resume(); res.end(); return; }
+    if (req.url === '/logs') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => { logged.push(JSON.parse(body)); res.end(); });
+      return;
+    }
     hits++;
     req.resume();
     if (hits === 1) { req.socket.destroy(); return; }
@@ -73,4 +79,11 @@ test('a report whose connection the provider drops once still gets its answer', 
   assert.ok(result, 'the report answered');
   assert.equal(hits, 2);
   assert.match(warnings.join('\n'), /report 183 \(127\.0\.0\.1:\d+\): connection dropped \(ECONNRESET\), sending once more/, 'names the Hashavshevet server in use');
+  for (let attempt = 0; attempt < 50 && !logged.some((entry) => entry.retry); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const retry = logged.find((entry) => entry.retry);
+  assert.ok(retry, 'the retry is reported to the app logs');
+  assert.deepEqual({ ...retry, provider: retry.provider.replace(/:\d+$/, '') },
+    { retry: true, reportType: '183', priority: 'interactive', provider: '127.0.0.1', error: 'ECONNRESET' });
 });

@@ -411,10 +411,13 @@ export async function getReport(type, payload, { priority = "interactive", signa
       {
         timeoutMs: upstreamTimeoutMs,
         signal: upstreamSignal,
-        // Kept in the service log, so dropped connections stay visible after a successful retry.
-        onRetry: (error) => console.warn(
-          `[hashAPI] ${new Date().toISOString()} report ${type} (${PROVIDER_HOST}): connection dropped (${error.code || error.message}), sending once more`
-        )
+        // Kept in the service log and the app's logs page, so dropped connections stay visible
+        // after a successful retry.
+        onRetry: (error) => {
+          const reason = error.code || error.message;
+          console.warn(`[hashAPI] ${new Date().toISOString()} report ${type} (${PROVIDER_HOST}): connection dropped (${reason}), sending once more`);
+          postUpstreamLog({ retry: true, reportType: type, priority, provider: PROVIDER_HOST, error: reason });
+        }
       }
     ));
 

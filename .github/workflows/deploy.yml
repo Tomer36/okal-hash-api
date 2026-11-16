@@ -1,0 +1,88 @@
+name: Test and deploy
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  # Runs on the production server itself (a self-hosted runner registered to this repository),
+  # and only for a push to the production branch whose tests above passed.
+  deploy:
+    name: Deploy to the production server
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    runs-on: [self-hosted, windows, okal-production]
+    timeout-minutes: 15
+    concurrency:
+      group: hash-api-deploy
+      cancel-in-progress: false
+    env:
+      PROJECT_ROOT: C:\Users\Administrator\Documents\GitHub\okal-hash-api
+      SERVICE_NAME: okal-hash-api
+    steps:
+      - name: Update the code on the server
+        shell: powershell
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          # "npm install" may have rewritten the lockfile; that is not an edit.
+          git -C $env:PROJECT_ROOT checkout -- package-lock.json
+          # Local edits on the server (config included) would be silently mixed into the release. Stop instead.
+          $changed = @(git -C $env:PROJECT_ROOT status --porcelain --untracked-files=no)
+          if ($LASTEXITCODE -ne 0) { Write-Host 'git status failed.'; exit 1 }
+          if ($changed.Count -gt 0) {
+            Write-Host 'The server folder has local changes, so nothing was deployed:'
+            $changed | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          $previous = (git -C $env:PROJECT_ROOT rev-parse HEAD).Trim()
+          # Sign in with this run's own short-lived token; nothing is stored on the server.
+          $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          git -C $env:PROJECT_ROOT -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" fetch origin production
+          if ($LASTEXITCODE -ne 0) { Write-Host 'git fetch failed.'; exit 1 }
+          # Exactly the commit that was tested, even if something newer was pushed meanwhile.
+          git -C $env:PROJECT_ROOT checkout -B production $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { Write-Host 'git checkout failed.'; exit 1 }
+          $packages = @(git -C $env:PROJECT_ROOT diff --name-only $previous $env:GITHUB_SHA -- package.json package-lock.json)
+          if ($packages.Count -gt 0 -or -not (Test-Path "$env:PROJECT_ROOT\node_modules")) {
+            [IO.File]::AppendAllText($env:GITHUB_ENV, "INSTALL_PACKAGES=1`n")
+          }
+      - name: Install packages
+        if: env.INSTALL_PACKAGES == '1'
+        shell: cmd
+        run: |
+          cd /d "%PROJECT_ROOT%"
+          call npm ci --omit=dev
+      - name: Restart the service
+        shell: powershell
+        run: Restart-Service -Name $env:SERVICE_NAME -ErrorAction Stop
+      - name: Check the gateway is listening
+        shell: powershell
+        run: |
+          $port = (Get-Content "$env:PROJECT_ROOT\config\default.json" -Raw | ConvertFrom-Json).configs.HASH_PORT
+          $deadline = (Get-Date).AddSeconds(60)
+          do {
+            if ((Get-Service $env:SERVICE_NAME).Status -eq 'Running' -and
+                (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)) {
+              Write-Host "The gateway is listening on port $port."
+              exit 0
+            }
+            Start-Sleep -Seconds 2
+          } while ((Get-Date) -lt $deadline)
+          Write-Host "The gateway is not listening on port $port after 60 seconds."
+          exit 1

@@ -90,6 +90,11 @@ const resilience = new Resilience({
   cooldownMs: resilienceSetting("HASH_BREAKER_COOLDOWN_MS", "BREAKER_COOLDOWN_MS", 15000),
   onEvent: event => postUpstreamLog({ resilience: true, ...event })
 });
+// The limits in effect, after any HASH_* environment override, for the startup log.
+export const RESILIENCE_LIMITS = {
+  max: resilience.max, background: resilience.backgroundMax, perReport: resilience.perReportMax,
+  breakerThreshold: resilience.threshold
+};
 
 /* -------------------- HELPERS -------------------- */
 function parseReportFile(filePath) {

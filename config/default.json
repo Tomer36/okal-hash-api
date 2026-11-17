@@ -2,12 +2,12 @@
     "resilience": {
         "UPSTREAM_TIMEOUT_MS": 175000,
         "INTERACTIVE_UPSTREAM_TIMEOUT_MS": 25000,
-        "MAX_CONCURRENT_REQUESTS": 4,
-        "MAX_BACKGROUND_REQUESTS": 1,
-        "MAX_REQUESTS_PER_REPORT": 2,
+        "MAX_CONCURRENT_REQUESTS": 7,
+        "MAX_BACKGROUND_REQUESTS": 3,
+        "MAX_REQUESTS_PER_REPORT": 7,
         "MAX_QUEUE_DEPTH": 24,
         "MAX_SLOT_WAIT_MS": 6000,
-        "BREAKER_FAILURE_THRESHOLD": 5,
+        "BREAKER_FAILURE_THRESHOLD": 1000000,
         "BREAKER_COOLDOWN_MS": 15000,
         "AUTH_SERVICE_LOG_URL": "http://localhost:3000/api/internal/upstream-log"
     },

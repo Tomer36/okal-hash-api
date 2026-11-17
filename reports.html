@@ -573,6 +573,7 @@
         { id: "188", name: "תעודות משלוח פתוחות לפי פריטים", needsClient: true },
         { id: "189", name: "הזמנות פתוחות וסגורות לפי פריטים", needsClient: true },
         { id: "192", name: "ריכוז קבלות מרואן", needsClient: false },
+        { id: "196", name: "דוח 196", needsClient: false },
         { id: "197", name: "דוח חשבוניות סוף חודש מרואן", needsClient: false },
         { id: "198", name: "API אינדקס לקוחות", needsClient: false },
         { id: "200", name: "העתק חשבונית לפי מס חשבונית", needsClient: false },
@@ -584,7 +585,7 @@
         { id: "232", name: "דוח 232", needsClient: false },
       ];
 
-      const dateRangeReports = new Set(["182", "192", "197", "198", "225", "227", "280", "232"]);
+      const dateRangeReports = new Set(["182", "192", "196", "197", "198", "225", "227", "280", "232"]);
       const dateFromOnlyReports = new Set(["175", "181"]);
       const fixedDateRangeReports = new Map([
         ["198", { from: "2020-01-01", to: "2194-12-31" }],
@@ -593,8 +594,8 @@
       ]);
       const invoiceReports = new Set(["200"]);
       const sortCodeRangeReports = new Set(["175", "226", "227"]);
-      const headerNumberReports = new Set(["174", "197"]);
-      const headerNumberRangeReports = new Set(["197"]);
+      const headerNumberReports = new Set(["174", "196", "197"]);
+      const headerNumberRangeReports = new Set(["196", "197"]);
       const clientNumberInput = document.getElementById("clientNumber");
       const clientGroup = document.getElementById("clientNumberGroup");
       const dateRangeGroup = document.getElementById("dateRangeGroup");

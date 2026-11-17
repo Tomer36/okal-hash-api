@@ -191,7 +191,7 @@ function loadReportTemplate(filePath, input, reportType) {
     }
 
     if (
-      reportType === "197" &&
+      ["196", "197"].includes(reportType) &&
       param?.type === "long" &&
       param?.name?.includes(HEADER_NUMBER_FIELD_NAME)
     ) {

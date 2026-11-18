@@ -52,6 +52,9 @@ const AUTH_SERVICE_LOG_URL = process.env.AUTH_SERVICE_LOG_URL
 // /logs page instead of only this process's console. Never let a logging
 // call add latency or fail the actual report request.
 let pendingLogWrites = 0;
+// Awaited, for the one startup message that must not be dropped silently.
+export const postStartupLog = payload => axios.post(AUTH_SERVICE_LOG_URL, payload, { timeout: 3000 });
+
 function postUpstreamLog(payload) {
   if (pendingLogWrites >= 8) return;
   pendingLogWrites++;

@@ -202,4 +202,20 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.equal((await get('/templates')).reports.some(item => item.type === '998'), false, 'not listed before it is turned on');
   assert.equal((await post('/templates/998/activate', { by: 'בודק', version: newCheck.body.version, name: 'נבדק' })).status, 200);
   assert.equal((await get('/templates')).reports.find(item => item.type === '998').name, 'נבדק');
+
+  // The plan: a check says how the filters change; a change that would break something is refused
+  // before Hashavshevet is called, and the file in use stays.
+  hrepOutput = JSON.stringify({ ...custom, params_data: custom.params_data.map(param => (param.id === '500' ? { ...param, defVal: '305' } : param)) });
+  const planned = await post('/templates/998/update', { by: 'בודק', clientNumber: '777', activate: false });
+  assert.deepEqual(planned.body.changes.changed, [{ filter: 'קוד מיון עד', from: '301', to: '305' }]);
+  assert.deepEqual(planned.body.changes.problems, []);
+
+  const sentBeforeBlocked = sent.length;
+  hrepOutput = JSON.stringify({ ...custom, params_data: custom.params_data.filter(param => param.id !== '2') });
+  const blocked = await post('/templates/998/update', { by: 'בודק', clientNumber: '777' });
+  assert.equal(blocked.status, 422);
+  assert.equal(blocked.body.stage, 'plan');
+  assert.match(blocked.body.error, /אין סינון לקוח/);
+  assert.equal(blocked.body.changes.removed[0].client, true);
+  assert.equal(sent.length, sentBeforeBlocked, 'Hashavshevet was not called for a blocked change');
 });

@@ -17,6 +17,16 @@ field names) and runs the report once against Hashavshevet with it. Only if that
 is the new template saved and used, from the next call on, without a restart. Single-customer
 reports need a customer number for the test.
 
+Rivo checks first and turns on second: `activate: false` keeps the tested file as a version that
+is not in use and returns the first rows; `POST /templates/<report>/activate` then turns that
+version on (with `name` for a new report). Every check also returns a plan,
+`changes: { added, removed, changed, unchanged, problems, blocked }`, comparing the filters with
+the file in use (`services/templateContract.mjs`, which also owns the filter names the report calls
+fill in). A problem of level "error" refuses the change before Hashavshevet is called (422, stage
+`plan`): a single-customer report losing its customer filter, report 198 losing its card-number
+filter (the new-cards check), report 200 losing its document-number filter. A "warning" (a filter
+behind a field on the reports page is gone, or no filters at all) is shown and confirmed in Rivo.
+
 - New versions are kept in `C:\okal-services\report-templates` (outside the repository, so a
   deploy is never blocked by local changes): `versions/<report>/<time>.txt`, `active.json`
   (the version in use per report; no entry means the git file) and `updates.log` (who, when,

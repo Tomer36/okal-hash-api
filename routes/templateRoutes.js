@@ -5,6 +5,7 @@ import express from "express";
 import { getReport, reportNeedsClient, templates, HREP_SETTINGS } from "../services/reportService.js";
 import { runHrep as defaultRunHrep } from "../services/hrep.mjs";
 import { applyFilterValues, isReportNumber, parseTemplateText, summarizeParams } from "../services/reportTemplates.mjs";
+import { compareTemplates } from "../services/templateContract.mjs";
 
 // Bulk reports (175, 176, the full 198) can take minutes; this matches the background limit.
 const TEST_DEADLINE_MS = 175000;
@@ -71,6 +72,17 @@ export function createTemplateRouter({
     }
   });
 
+  // The template in use, or null when the report has none yet (a new report).
+  const readTemplateIfAny = type => {
+    const file = store.resolve(type);
+    if (!file) return null;
+    try {
+      return parseTemplateText(fs.readFileSync(file, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+
   const readCurrentTemplate = type => {
     const file = store.resolve(type);
     if (!file) throw badRequest("אין קובץ לדוח הזה");
@@ -107,6 +119,13 @@ export function createTemplateRouter({
     let stage = action === "update" ? "hrep" : "values";
     try {
       const template = await build(type, req.body, next => { stage = next; }, hrepId);
+      // The plan: how the filters differ from the file in use, and what that would break. A change
+      // that would break something (an "error") is refused before Hashavshevet is called.
+      stage = "plan";
+      const changes = compareTemplates(readTemplateIfAny(type), template, type);
+      if (changes.blocked) {
+        throw Object.assign(new Error(changes.problems.filter(problem => problem.level === "error").map(problem => problem.message).join("; ")), { status: 422, changes });
+      }
       if (reportNeedsClient(template) && !clientNumber) {
         throw badRequest("הדוח הזה הוא של לקוח אחד: נא למלא מספר לקוח לבדיקה");
       }
@@ -131,7 +150,7 @@ export function createTemplateRouter({
       const changed = Object.keys(req.body?.values || {}).length;
       store.appendLog({ type, action, ok: true, by, version, previous, rows, activated: activateNow, ...(name ? { name } : {}), ...(hrepId ? { hrepId } : {}), ...(changed ? { values: changed } : {}) });
       res.json({
-        ok: true, version, rows, activated: activateNow, params: summarizeParams(template),
+        ok: true, version, rows, activated: activateNow, params: summarizeParams(template), changes,
         ...(activateNow ? {} : { preview: Array.isArray(data) ? data.slice(0, PREVIEW_ROWS) : [] })
       });
     } catch (error) {
@@ -141,7 +160,7 @@ export function createTemplateRouter({
       try {
         store.appendLog({ type, action, ok: false, by, stage, error: message, ...(hrepId ? { hrepId } : {}) });
       } catch { /* the reply below still reports the failure */ }
-      res.status(error.status && error.status < 500 ? error.status : 502).json({ error: message, stage });
+      res.status(error.status && error.status < 500 ? error.status : 502).json({ error: message, stage, ...(error.changes ? { changes: error.changes } : {}) });
     } finally {
       updating = null;
     }

@@ -6,6 +6,8 @@ import config from "config";
 import { Resilience } from './resilience.mjs';
 import { sendWithOneRetry } from './connectionRetry.mjs';
 import { createTemplateStore, isClientParam } from './reportTemplates.mjs';
+// The filter names, owned with the rules that check a new template (templateContract.mjs).
+import { ACCOUNT_CARD_NUMBER_FIELD_NAME, DOCUMENT_NUMBER_FIELD_NAME, HEADER_NUMBER_FIELD_NAME, SORT_CODE_FIELD_NAME } from './templateContract.mjs';
 import path from "path";
 
 /* -------------------- CONFIG -------------------- */
@@ -132,9 +134,6 @@ function parseReportFile(filePath) {
 }
 
 
-const SORT_CODE_FIELD_NAME = "קוד מיון";
-const HEADER_NUMBER_FIELD_NAME = "מספר כותרת";
-const ACCOUNT_CARD_NUMBER_FIELD_NAME = "מספר כרטיס חשבון";
 
 // Values for single filters by their id in params_data, as the viewer sends them for a report
 // it has no fixed form for. Applied last, so they win; the customer filter stays clientNumber's.
@@ -169,7 +168,7 @@ function loadReportTemplate(report, input, reportType) {
       reportType === "200" &&
       input?.invoiceNumber &&
       param?.type === "long" &&
-      param?.name?.includes("מספר מסמך")
+      param?.name?.includes(DOCUMENT_NUMBER_FIELD_NAME)
     ) {
       return { ...param, defVal: String(input.invoiceNumber) };
     }

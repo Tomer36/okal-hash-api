@@ -142,7 +142,9 @@ export function createTemplateRouter({
         throw Object.assign(new Error(changes.problems.filter(problem => problem.level === "error").map(problem => problem.message).join("; ")), { status: 422, changes });
       }
       if (reportNeedsClient(template) && !clientNumber) {
-        throw badRequest("הדוח הזה הוא של לקוח אחד: נא למלא מספר לקוח לבדיקה");
+        // The new file can be of one customer while the file in use is not (it gained a customer
+        // filter): the answer says so, so the page asks for a customer number.
+        throw Object.assign(badRequest("הקובץ החדש הוא של לקוח אחד: נא למלא מספר לקוח לבדיקה"), { needsClient: true });
       }
       stage = "test";
       // Every run sets the date filters from the request, or to today without one; a check runs
@@ -178,7 +180,7 @@ export function createTemplateRouter({
       try {
         store.appendLog({ type, action, ok: false, by, stage, error: message, ...(hrepId ? { hrepId } : {}) });
       } catch { /* the reply below still reports the failure */ }
-      res.status(error.status && error.status < 500 ? error.status : 502).json({ error: message, stage, ...(error.changes ? { changes: error.changes } : {}) });
+      res.status(error.status && error.status < 500 ? error.status : 502).json({ error: message, stage, ...(error.changes ? { changes: error.changes } : {}), ...(error.needsClient ? { needsClient: true } : {}) });
     } finally {
       updating = null;
     }

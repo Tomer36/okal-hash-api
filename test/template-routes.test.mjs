@@ -95,7 +95,9 @@ test('templates page: update tests against Hashavshevet before use, and versions
 
   // A single-customer report needs a customer to test with.
   hrepOutput = JSON.stringify(gitTemplate('181'));
-  assert.equal((await post('/templates/181/update', { by: 'בודק' })).status, 400);
+  const noCustomer = await post('/templates/181/update', { by: 'בודק' });
+  assert.equal(noCustomer.status, 400);
+  assert.equal(noCustomer.body.needsClient, true, 'the answer says a customer number is needed');
   assert.equal((await post('/templates/181/update', { by: 'בודק', clientNumber: '12345' })).status, 200);
 
   // A name is required, and the report number must be a number.

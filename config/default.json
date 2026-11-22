@@ -11,6 +11,12 @@
         "BREAKER_COOLDOWN_MS": 15000,
         "AUTH_SERVICE_LOG_URL": "http://localhost:3000/api/internal/upstream-log"
     },
+  "templates": {
+    "HREP_DIR": "C:\\Hash7\\H-Mobile\\H-Mobile-1.2.1\\Hconnect",
+    "HREP_COMPANY": "3",
+    "OVERRIDE_DIR": "C:\\okal-services\\report-templates",
+    "HREP_IDS": { "225": "227", "227": "228", "280": "229", "276": "230", "285": "231" }
+  },
   "configs": {
     "HASH_PORT" : 6001,
     "API_URL" : "https://ws.wizground.com/api",

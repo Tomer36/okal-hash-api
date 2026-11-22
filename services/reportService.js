@@ -5,6 +5,8 @@ import crypto from "crypto";
 import config from "config";
 import { Resilience } from './resilience.mjs';
 import { sendWithOneRetry } from './connectionRetry.mjs';
+import { createTemplateStore, isClientParam } from './reportTemplates.mjs';
+import path from "path";
 
 /* -------------------- CONFIG -------------------- */
 const API_URL = config.get("configs.API_URL");
@@ -82,6 +84,18 @@ function logHealthSnapshot() {
 setInterval(logHealthSnapshot, 15 * 60 * 1000).unref?.();
 
 const reportTemplateCache = new Map();
+// Templates updated from the templates page live outside the repository (see reportTemplates.mjs).
+export const templates = createTemplateStore({
+  builtInDir: path.resolve("reports"),
+  overrideDir: process.env.HASH_TEMPLATE_DIR
+    || (config.has("templates.OVERRIDE_DIR") && config.get("templates.OVERRIDE_DIR"))
+    || "C:\\okal-services\\report-templates",
+  hrepIds: config.has("templates.HREP_IDS") ? config.get("templates.HREP_IDS") : {}
+});
+export const HREP_SETTINGS = {
+  dir: config.has("templates.HREP_DIR") ? config.get("templates.HREP_DIR") : "C:\\Hash7\\H-Mobile\\H-Mobile-1.2.1\\Hconnect",
+  company: config.has("templates.HREP_COMPANY") ? String(config.get("templates.HREP_COMPANY")) : "3"
+};
 const ESSENTIAL_REPORT_TYPES = new Set(['181', '184', '185']);
 const resilience = new Resilience({
   max: MAX_CONCURRENT_REQUESTS,
@@ -118,24 +132,25 @@ function parseReportFile(filePath) {
 }
 
 
-const CLIENT_OP_NAME = "שווה";
 const SORT_CODE_FIELD_NAME = "קוד מיון";
 const HEADER_NUMBER_FIELD_NAME = "מספר כותרת";
 const ACCOUNT_CARD_NUMBER_FIELD_NAME = "מספר כרטיס חשבון";
-const ACCOUNT_KEY_FIELD_NAME = "מפתח חשבון";
 
-// The client number goes only into an "equals" filter on the account key. Other "equals" text
-// filters (e.g. report 187's fixed counter account) keep the value set in the template.
-function isClientParam(param) {
-  return (
-    param?.type === "txt" &&
-    param?.opName === CLIENT_OP_NAME &&
-    String(param?.name ?? "").endsWith(ACCOUNT_KEY_FIELD_NAME)
-  );
+// Values for single filters by their id in params_data, as the viewer sends them for a report
+// it has no fixed form for. Applied last, so they win; the customer filter stays clientNumber's.
+function applyParamValues(params, values) {
+  if (!values || typeof values !== "object" || Array.isArray(values)) return params;
+  return params.map((param) => {
+    const id = String(param?.id ?? "");
+    if (!id || !Object.hasOwn(values, id) || isClientParam(param)) return param;
+    const value = values[id];
+    if (value === null || value === undefined || typeof value === "object") return param;
+    return { ...param, defVal: String(value).slice(0, 200) };
+  });
 }
 
-function loadReportTemplate(filePath, input, reportType) {
-  const report = parseReportFile(filePath);
+// report: a fresh copy of the template, filled in place.
+function loadReportTemplate(report, input, reportType) {
 
   if (!Array.isArray(report.params_data)) {
     return report;
@@ -218,11 +233,12 @@ function loadReportTemplate(filePath, input, reportType) {
 
     return param;
   });
+  report.params_data = applyParamValues(report.params_data, input?.params);
 
   return report;
 }
 
-function reportNeedsClient(report) {
+export function reportNeedsClient(report) {
   if (!Array.isArray(report?.params_data)) {
     return false;
   }
@@ -360,15 +376,16 @@ function processReport200(data) {
 }
 
 /* -------------------- MAIN SERVICE -------------------- */
-export async function getReport(type, payload, { priority = "interactive", signal, deadline } = {}) {
+// template: send this template instead of the saved one (the templates page tests a new one).
+export async function getReport(type, payload, { priority = "interactive", signal, deadline, template } = {}) {
   const startedAt = Date.now();
-  const templatePath = `./reports/${type}.txt`;
+  const templatePath = template ? null : templates.resolve(type);
 
-  if (!fs.existsSync(templatePath)) {
+  if (!templatePath && !template) {
     throw new Error(`Report '${type}' is not supported`);
   }
 
-  const reportTemplateRaw = parseReportFile(templatePath);
+  const reportTemplateRaw = template ? JSON.parse(JSON.stringify(template)) : parseReportFile(templatePath);
   const needsClient = reportNeedsClient(reportTemplateRaw);
 
   if (needsClient && !payload?.clientNumber) {
@@ -376,7 +393,7 @@ export async function getReport(type, payload, { priority = "interactive", signa
   }
 
   const reportTemplate = loadReportTemplate(
-    templatePath,
+    reportTemplateRaw,
     {
       ID: payload?.clientNumber,
       dateFrom: payload?.dateFrom,
@@ -387,6 +404,7 @@ export async function getReport(type, payload, { priority = "interactive", signa
       headerNumberFrom: payload?.headerNumberFrom || payload?.headerNumber,
       headerNumberTo: payload?.headerNumberTo,
       cardNumberFrom: payload?.cardNumberFrom,
+      params: payload?.params,
     },
     type
   );

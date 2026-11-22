@@ -2,6 +2,7 @@
 // Versions live outside the repository, so updating a template never leaves local changes that
 // would block a deploy. One small state file names the version in use for each report; without
 // an entry, the git file is used.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -105,6 +106,8 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
   const statePath = path.join(overrideDir, 'active.json');
   const namesPath = path.join(overrideDir, 'names.json');
   const hrepIdsPath = path.join(overrideDir, 'hrep-ids.json');
+  // The git file each report's version replaced, by content hash, to tell when git has a newer one.
+  const gitHashesPath = path.join(overrideDir, 'git-hashes.json');
   const logPath = path.join(overrideDir, 'updates.log');
   const versionDir = type => path.join(overrideDir, 'versions', type);
   const versionPath = (type, version) => path.join(versionDir(type), `${version}.txt`);
@@ -189,7 +192,6 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
     return version;
   }
 
-  // Switches a report to one of its versions, or back to the git file with null.
   // The file of one saved version, or null.
   function versionFile(type, version) {
     if (!isReportNumber(type) || !VERSION_RE.test(String(version ?? ''))) return null;
@@ -197,6 +199,39 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
     return fs.existsSync(file) ? file : null;
   }
 
+  // The report's file in git, or null.
+  function gitFile(type) {
+    if (!isReportNumber(type)) return null;
+    const file = builtInPath(type);
+    return fs.existsSync(file) ? file : null;
+  }
+
+  const hashOf = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  function readJsonMap(file) {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') warn(`[templates] ${file} is unreadable: ${error.message}`);
+      return {};
+    }
+  }
+  function writeJsonMap(file, map) {
+    fs.mkdirSync(overrideDir, { recursive: true });
+    const temporary = `${file}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify(map, null, 2));
+    fs.renameSync(temporary, file);
+  }
+
+  // True when a version is in use and the git file has changed since it was turned on (a newer
+  // file was committed). Unknown (a version turned on before this was recorded) counts as false.
+  function gitNewer(type) {
+    const file = gitFile(type);
+    const recorded = readJsonMap(gitHashesPath)[type];
+    if (!activeVersion(type) || !file || !recorded) return false;
+    return recorded !== hashOf(file);
+  }
+
+  // Switches a report to one of its versions, or back to the git file with null.
   function activate(type, version) {
     if (!isReportNumber(type)) throw templateError('מספר דוח לא תקין');
     if (version !== null && !versions(type).includes(version)) throw templateError('הגרסה לא נמצאה');
@@ -207,6 +242,51 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
     if (version === null) delete state[type];
     else state[type] = version;
     writeState(state);
+    const hashes = readJsonMap(gitHashesPath);
+    const file = gitFile(type);
+    if (version !== null && file) hashes[type] = hashOf(file);
+    else delete hashes[type];
+    writeJsonMap(gitHashesPath, hashes);
+  }
+
+  // Removes checked versions that were never in use: older than olderThanDays, not among the
+  // newest keepLatest of the report, and never turned on (by the log). Answers what was removed.
+  function pruneVersions({ olderThanDays = 30, keepLatest = 5 } = {}) {
+    const removed = [];
+    const cutoff = now().getTime() - olderThanDays * 24 * 60 * 60 * 1000;
+    const everUsed = new Set();
+    for (const entry of history(undefined, 100000)) {
+      if (!entry.ok || !entry.version) continue;
+      if (entry.action === 'activate' || entry.activated !== false) everUsed.add(`${entry.type}:${entry.version}`);
+    }
+    let types = [];
+    try {
+      types = fs.readdirSync(path.join(overrideDir, 'versions')).filter(isReportNumber);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    for (const type of types) {
+      const all = versions(type);
+      const keep = new Set([activeVersion(type), ...all.slice(-keepLatest)].filter(Boolean));
+      for (const version of all) {
+        const at = Date.parse(version.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/, '$1T$2:$3:$4.$5Z'));
+        if (keep.has(version) || everUsed.has(`${type}:${version}`) || !(at < cutoff)) continue;
+        fs.rmSync(versionPath(type, version), { force: true });
+        removed.push(`${type}/${version}`);
+      }
+    }
+    return removed;
+  }
+
+  // Whether the report's file in use has a customer filter (a report of one customer).
+  function needsClient(type) {
+    const file = resolve(type);
+    if (!file) return false;
+    try {
+      return parseTemplateText(fs.readFileSync(file, 'utf8')).params_data.some(isClientParam);
+    } catch {
+      return false;
+    }
   }
 
   // Display names for the viewer, given on the templates page.
@@ -302,11 +382,13 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
       type,
       name: names[type] || '',
       hrepId: hrepId(type),
+      needsClient: needsClient(type),
+      gitNewer: gitNewer(type),
       version: activeVersion(type),
       inGit: fs.existsSync(builtInPath(type)),
       lastChange: lastChange.get(type) || null
     }));
   }
 
-  return { resolve, activeVersion, versions, versionFile, saveVersion, activate, setName, hrepId, setHrepId, appendLog, history, list };
+  return { resolve, activeVersion, versions, versionFile, gitFile, gitNewer, pruneVersions, needsClient, saveVersion, activate, setName, hrepId, setHrepId, appendLog, history, list };
 }

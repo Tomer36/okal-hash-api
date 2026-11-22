@@ -32,7 +32,17 @@ behind a field on the reports page is gone, or no filters at all) is shown and c
   (the version in use per report; no entry means the git file) and `updates.log` (who, when,
   result, failures included).
 - `POST /templates/<report>/activate` switches to one of the versions, or back to the git file
-  with `version: null`.
+  with `version: null`. A version is checked against the plan's rules before it is turned on.
+- `POST /templates/<report>/check-version` (`{ version }`) and `/check-git` check an existing
+  file like any change (plan, test call, rows) without saving a copy; Rivo uses them before turning
+  an older version or a newer git file on. `gitNewer` in the list and the details says the git file
+  changed after the version in use was turned on (recorded in `git-hashes.json`).
+- Checked versions never turned on are removed after 30 days (the newest 5 per report and any
+  version once in use stay), right after the daily backup.
+- The details give each filter `filledBy`: the request field that fills it on every run (`dates`,
+  `client`, `sortCode`, `headerNumber`, `invoiceNumber`, `cardNumber`), or null for a filter that
+  keeps its value in the file (Rivo offers those as extra fields). The list gives `needsClient`,
+  from the report's own file.
 - A report number that is not in git can be added the same way, with a name. Rivo then lists
   it and builds its form from the template's filters, sending the values by filter id
   (`params` in the request body). A customer filter becomes the usual customer number field.

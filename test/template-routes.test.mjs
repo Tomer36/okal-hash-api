@@ -230,4 +230,24 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.match(refusedSwitch.body.error, /אין סינון לקוח/);
   assert.equal(refusedSwitch.body.changes.blocked, true);
   assert.equal((await get('/templates/181')).version, inUse181, 'the file in use did not change');
+
+  // An older version, and the git file, are checked like any change before they are turned on.
+  const versionCheck = await post('/templates/198/check-version', { by: 'בודק', version: firstVersion, activate: false });
+  assert.equal(versionCheck.status, 200, JSON.stringify(versionCheck.body));
+  assert.equal(versionCheck.body.version, firstVersion, 'the existing version is tested, not saved again');
+  assert.equal(versionCheck.body.activated, false);
+  assert.ok(Array.isArray(versionCheck.body.preview));
+  const versionsBefore = (await get('/templates/198')).versions.length;
+  const gitCheck = await post('/templates/198/check-git', { by: 'בודק', activate: false });
+  assert.equal(gitCheck.status, 200, JSON.stringify(gitCheck.body));
+  assert.equal(gitCheck.body.version, null, 'the git file is turned on as itself');
+  assert.equal((await get('/templates/198')).versions.length, versionsBefore, 'no copy is saved');
+  assert.equal((await post('/templates/198/check-version', { by: 'בודק', version: 'nope' })).status, 400);
+  assert.equal((await post('/templates/999/check-git', { by: 'בודק', clientNumber: '777' })).status, 400, 'a report without a git file');
+
+  // Each filter says which request field fills it on every run.
+  const filled = Object.fromEntries((await get('/templates/999')).params.map(param => [param.id, param.filledBy]));
+  assert.equal(filled['1'], 'dates');
+  assert.equal(filled['2'], 'client');
+  assert.equal(filled['0'], null, 'a filter that keeps its value in the file');
 });

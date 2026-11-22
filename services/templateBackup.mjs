@@ -8,7 +8,9 @@ import path from 'node:path';
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function createTemplateBackup({ sourceDir, backupDir, keep = 14, now = () => new Date(), log = console.log, warn = console.error }) {
+// afterRun: called after each copy (the cleanup of checked versions never used runs then, so a
+// version is always in a backup before it is removed).
+export function createTemplateBackup({ sourceDir, backupDir, keep = 14, now = () => new Date(), log = console.log, warn = console.error, afterRun = null }) {
   // Copies the folder now; answers the folder written, or null when there was nothing to copy.
   function run() {
     if (!sourceDir || !backupDir || !fs.existsSync(sourceDir)) return null;
@@ -29,12 +31,22 @@ export function createTemplateBackup({ sourceDir, backupDir, keep = 14, now = ()
   }
 
   const safeRun = () => {
+    let target = null;
     try {
-      return run();
+      target = run();
     } catch (error) {
       warn(`[templates] backup to ${backupDir} failed: ${error.message}`);
       return null;
     }
+    // Only after a copy that worked.
+    if (target && afterRun) {
+      try {
+        afterRun();
+      } catch (error) {
+        warn(`[templates] after the backup: ${error.message}`);
+      }
+    }
+    return target;
   };
 
   // Once now and then every day; the timer does not keep the process alive.

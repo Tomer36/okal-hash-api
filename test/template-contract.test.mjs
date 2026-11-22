@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareTemplates } from '../services/templateContract.mjs';
+import { compareTemplates, requestFieldFor } from '../services/templateContract.mjs';
 
 const filter = (name, origin, defVal, extra = {}) => ({ id: name + origin, type: 'long', name: `שדה/${name}`, opName: 'מ..עד', opOrigin: origin, defVal, ...extra });
 const client = { id: 'c', type: 'txt', name: 'פרטי חשבון/מפתח חשבון', opName: 'שווה', opOrigin: '', defVal: '' };
@@ -58,4 +58,16 @@ test('every report file in git passes its own rules, so no real report is blocke
     const parsed = parseTemplateText(fs.readFileSync(path.resolve('reports', file), 'utf8'));
     assert.deepEqual(compareTemplates(parsed, parsed, file.slice(0, -4)).problems, [], file);
   }
+});
+
+test('the request field that fills each filter, on the real report files', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { parseTemplateText } = await import('../services/reportTemplates.mjs');
+  const fields = (type) => parseTemplateText(fs.readFileSync(path.resolve('reports', `${type}.txt`), 'utf8')).params_data.map(param => requestFieldFor(type, param));
+  assert.ok(fields('174').includes('headerNumber'));
+  assert.ok(fields('200').includes('invoiceNumber'));
+  assert.ok(fields('198').includes('sortCode') && fields('198').includes('cardNumber'));
+  assert.ok(fields('181').includes('client'));
+  assert.ok(fields('227').includes('dates'));
 });

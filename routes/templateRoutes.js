@@ -5,7 +5,7 @@ import express from "express";
 import { getReport, reportNeedsClient, templates, HREP_SETTINGS } from "../services/reportService.js";
 import { runHrep as defaultRunHrep } from "../services/hrep.mjs";
 import { applyFilterValues, isReportNumber, parseTemplateText, summarizeParams } from "../services/reportTemplates.mjs";
-import { compareTemplates } from "../services/templateContract.mjs";
+import { compareTemplates, requestFieldFor } from "../services/templateContract.mjs";
 
 // Bulk reports (175, 176, the full 198) can take minutes; this matches the background limit.
 const TEST_DEADLINE_MS = 175000;
@@ -27,7 +27,8 @@ export function createTemplateRouter({
     const file = store.resolve(type);
     if (!file) return null;
     try {
-      return summarizeParams(parseTemplateText(fs.readFileSync(file, "utf8")));
+      const template = parseTemplateText(fs.readFileSync(file, "utf8"));
+      return summarizeParams(template).map((param, index) => ({ ...param, filledBy: requestFieldFor(type, template.params_data[index]) }));
     } catch {
       return null;
     }
@@ -61,6 +62,8 @@ export function createTemplateRouter({
         type,
         name: store.list().find(item => item.type === type)?.name || "",
         hrepId: store.hrepId(type),
+        gitNewer: store.gitNewer?.(type) || false,
+        inGit: Boolean(store.gitFile?.(type)),
         version: store.activeVersion(type),
         exists: Boolean(store.resolve(type)),
         params: readParams(type),
@@ -116,9 +119,13 @@ export function createTemplateRouter({
       return;
     }
     const hrepId = action === "update" ? (requestedHrepId || store.hrepId(type)) : null;
-    let stage = action === "update" ? "hrep" : "values";
+    let stage = action === "update" ? "hrep" : action === "values" ? "values" : "read";
     try {
-      const template = await build(type, req.body, next => { stage = next; }, hrepId);
+      const built = await build(type, req.body, next => { stage = next; }, hrepId);
+      // A build answers a template, or { template, existing } for a file that already exists (the
+      // git file: null; a saved version: its name), which is tested and turned on but not saved again.
+      const template = built?.template || built;
+      const existing = built?.template ? built.existing : undefined;
       // The plan: how the filters differ from the file in use, and what that would break. A change
       // that would break something (an "error") is refused before Hashavshevet is called.
       stage = "plan";
@@ -142,7 +149,7 @@ export function createTemplateRouter({
       // (POST /:type/activate with that version).
       const activateNow = req.body?.activate !== false;
       const previous = store.activeVersion(type);
-      const version = store.saveVersion(type, template);
+      const version = existing !== undefined ? existing : store.saveVersion(type, template);
       if (activateNow) store.activate(type, version);
       const name = action === "update" ? String(req.body?.name ?? "").trim() : "";
       if (name && activateNow) store.setName(type, name);
@@ -176,6 +183,20 @@ export function createTemplateRouter({
     setStage("values");
     // The values shown on the page go into the fresh output; a filter Hashavshevet no longer has is left out.
     return applyFilterValues(template, values, current, { ignoreMissing: true });
+  }));
+
+  // A newer file committed to git, or an older version from the list: checked like any change
+  // (plan, test call, rows) before it is turned on.
+  router.post("/:type/check-git", testAndSave("git", async type => {
+    const file = store.gitFile(type);
+    if (!file) throw badRequest("לדוח הזה אין קובץ ב-git");
+    return { template: parseTemplateText(fs.readFileSync(file, "utf8")), existing: null };
+  }));
+  router.post("/:type/check-version", testAndSave("version", async (type, body) => {
+    const version = String(body?.version ?? "");
+    const file = store.versionFile(type, version);
+    if (!file) throw badRequest("הגרסה לא נמצאה");
+    return { template: parseTemplateText(fs.readFileSync(file, "utf8")), existing: version };
   }));
 
   // Only the filter values of the file in use, without hrep.

@@ -110,3 +110,48 @@ test('filter values go in by filter, never into dates or the customer, and a rem
   assert.throws(() => applyFilterValues(fresh, { 0: '310' }, template), /חסר סינון/);
   assert.deepEqual(applyFilterValues(fresh, { 0: '310' }, template, { ignoreMissing: true }).params_data, fresh.params_data);
 });
+
+test('a newer file in git is noticed while a version from Rivo is in use', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hash-git-newer-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const git = path.join(root, 'reports');
+  fs.mkdirSync(git);
+  fs.copyFileSync(path.join(reportsDir, '198.txt'), path.join(git, '198.txt'));
+  const { store } = temporaryStore(t, { builtInDir: git });
+  assert.equal(store.gitNewer('198'), false, 'the git file is in use');
+  const version = store.saveVersion('198', parseTemplateText(read('198.txt')));
+  store.activate('198', version);
+  assert.equal(store.gitNewer('198'), false, 'the version replaced this git file');
+  fs.appendFileSync(path.join(git, '198.txt'), '\n');
+  assert.equal(store.gitNewer('198'), true, 'a newer git file was committed');
+  assert.equal(store.list().find(item => item.type === '198').gitNewer, true);
+  store.activate('198', null);
+  assert.equal(store.gitNewer('198'), false, 'back on the git file');
+});
+
+test('checked versions never turned on are removed after 30 days; used, newest and active ones stay', (t) => {
+  let clock = Date.parse('2026-01-01T00:00:00.000Z');
+  const { store } = temporaryStore(t, { now: () => new Date(clock += 1000) });
+  const template = parseTemplateText(read('198.txt'));
+  const used = store.saveVersion('198', template);
+  store.activate('198', used);
+  store.appendLog({ type: '198', action: 'update', ok: true, version: used, activated: true });
+  const checkedOnly = [];
+  for (let i = 0; i < 7; i++) {
+    const version = store.saveVersion('198', template);
+    store.appendLog({ type: '198', action: 'update', ok: true, version, activated: false });
+    checkedOnly.push(version);
+  }
+  clock = Date.parse('2026-03-01T00:00:00.000Z');
+  const removed = store.pruneVersions({ olderThanDays: 30, keepLatest: 5 });
+  assert.deepEqual(removed, checkedOnly.slice(0, 2).map(version => `198/${version}`), 'the oldest checked-only ones beyond the newest 5');
+  assert.ok(store.versions('198').includes(used), 'a version once in use stays');
+  assert.equal(store.versions('198').length, 6);
+});
+
+test('the list says which reports are of one customer, from their file', (t) => {
+  const { store } = temporaryStore(t);
+  const byType = Object.fromEntries(store.list().map(item => [item.type, item.needsClient]));
+  assert.equal(byType['181'], true);
+  assert.equal(byType['198'], false);
+});

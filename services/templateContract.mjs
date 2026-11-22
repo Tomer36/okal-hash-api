@@ -35,6 +35,21 @@ for (const type of ['175', '198', '226', '227']) {
 // use cannot be read to compare with.
 export const SINGLE_CUSTOMER_REPORTS = new Set(['177', '180', '181', '183', '184', '185', '187', '188', '189']);
 
+// The request field that fills a filter on every run, as loadReportTemplate (reportService.js)
+// does; null for a filter that keeps the value in the file (a page may offer it as an extra field).
+export function requestFieldFor(type, param) {
+  const name = String(param?.name ?? '');
+  const report = String(type);
+  if (isClientParam(param)) return 'client';
+  if (param?.type === 'date') return 'dates';
+  if (param?.type !== 'long') return null;
+  if (report === '200' && name.includes(DOCUMENT_NUMBER_FIELD_NAME)) return 'invoiceNumber';
+  if (['175', '198', '226', '227'].includes(report) && name.includes(SORT_CODE_FIELD_NAME)) return 'sortCode';
+  if (report === '198' && param?.opOrigin === 'from' && name.includes(ACCOUNT_CARD_NUMBER_FIELD_NAME)) return 'cardNumber';
+  if (['174', '196', '197'].includes(report) && name.includes(HEADER_NUMBER_FIELD_NAME)) return 'headerNumber';
+  return null;
+}
+
 // current: the template in use (null for a new report); next: the one about to be checked.
 export function compareTemplates(current, next, type) {
   const before = Array.isArray(current?.params_data) ? current.params_data : [];

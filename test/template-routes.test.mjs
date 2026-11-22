@@ -178,4 +178,28 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.equal((await get('/templates/999')).hrepId, '231', 'a מזהה given on the page is kept for the next update');
   assert.equal((await get('/templates')).reports.find(item => item.type === '999').hrepId, '231');
   assert.equal((await post('/templates/999/update', { by: 'בודק', clientNumber: '777', hrepId: '23a' })).status, 400);
+
+  // A check only (activate: false): tested and kept as a version, not used, with the first rows
+  // of the test to look at; turning it on is a separate step.
+  const inUseBefore = (await get('/templates/198')).version;
+  hrepOutput = JSON.stringify({ ...gitTemplate('198'), encrypt_reportData: 'checked' });
+  const checked = await post('/templates/198/update', { by: 'בודק', activate: false });
+  assert.equal(checked.status, 200, JSON.stringify(checked.body));
+  assert.equal(checked.body.activated, false);
+  assert.deepEqual(checked.body.preview, [{ a: '1' }, { a: '2' }], 'the rows the test returned');
+  const afterCheck = await get('/templates/198');
+  assert.equal(afterCheck.version, inUseBefore, 'the file in use did not change');
+  assert.ok(afterCheck.versions.includes(checked.body.version), 'the checked file is kept as a version');
+  assert.equal(afterCheck.history[0].activated, false);
+  assert.notEqual(await encryptInUse(), 'checked');
+  assert.equal((await post('/templates/198/activate', { by: 'בודק', version: checked.body.version })).status, 200);
+  assert.equal(await encryptInUse(), 'checked', 'turned on as a separate step');
+
+  // A new report added by a check gets its name when it is turned on.
+  hrepOutput = JSON.stringify(custom);
+  const newCheck = await post('/templates/998/update', { by: 'בודק', clientNumber: '777', name: 'נבדק', activate: false });
+  assert.equal(newCheck.status, 200);
+  assert.equal((await get('/templates')).reports.some(item => item.type === '998'), false, 'not listed before it is turned on');
+  assert.equal((await post('/templates/998/activate', { by: 'בודק', version: newCheck.body.version, name: 'נבדק' })).status, 200);
+  assert.equal((await get('/templates')).reports.find(item => item.type === '998').name, 'נבדק');
 });

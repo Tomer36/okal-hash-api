@@ -8,6 +8,8 @@ import { applyFilterValues, isReportNumber, parseTemplateText, summarizeParams }
 
 // Bulk reports (175, 176, the full 198) can take minutes; this matches the background limit.
 const TEST_DEADLINE_MS = 175000;
+// How many rows of a check go back for a look before the file is turned on.
+const PREVIEW_ROWS = 20;
 
 const badRequest = message => Object.assign(new Error(message), { status: 400 });
 
@@ -116,15 +118,22 @@ export function createTemplateRouter({
       });
       const rows = Array.isArray(data) ? data.length : null;
       stage = "save";
+      // activate: false is a check only: the tested file is kept as a version that is not in use,
+      // and the first rows of the test go back so they can be looked at before it is turned on
+      // (POST /:type/activate with that version).
+      const activateNow = req.body?.activate !== false;
       const previous = store.activeVersion(type);
       const version = store.saveVersion(type, template);
-      store.activate(type, version);
+      if (activateNow) store.activate(type, version);
       const name = action === "update" ? String(req.body?.name ?? "").trim() : "";
-      if (name) store.setName(type, name);
+      if (name && activateNow) store.setName(type, name);
       if (hrepId && hrepId !== store.hrepId(type)) store.setHrepId(type, hrepId);
       const changed = Object.keys(req.body?.values || {}).length;
-      store.appendLog({ type, action, ok: true, by, version, previous, rows, ...(name ? { name } : {}), ...(hrepId ? { hrepId } : {}), ...(changed ? { values: changed } : {}) });
-      res.json({ ok: true, version, rows, params: summarizeParams(template) });
+      store.appendLog({ type, action, ok: true, by, version, previous, rows, activated: activateNow, ...(name ? { name } : {}), ...(hrepId ? { hrepId } : {}), ...(changed ? { values: changed } : {}) });
+      res.json({
+        ok: true, version, rows, activated: activateNow, params: summarizeParams(template),
+        ...(activateNow ? {} : { preview: Array.isArray(data) ? data.slice(0, PREVIEW_ROWS) : [] })
+      });
     } catch (error) {
       const message = stage === "test"
         ? `הבדיקה מול חשבשבת נכשלה, הקובץ הקודם נשאר בשימוש: ${error.message}`
@@ -166,7 +175,10 @@ export function createTemplateRouter({
       if (version !== null && typeof version !== "string") throw badRequest("גרסה לא תקינה");
       const previous = store.activeVersion(type);
       store.activate(type, version);
-      store.appendLog({ type, action: "activate", ok: true, by, version, previous });
+      // A report added by a check gets its name when it is turned on.
+      const name = String(req.body?.name ?? "").trim();
+      if (name) store.setName(type, name);
+      store.appendLog({ type, action: "activate", ok: true, by, version, previous, ...(name ? { name } : {}) });
       res.json({ ok: true, version });
     } catch (error) {
       sendError(res, error);

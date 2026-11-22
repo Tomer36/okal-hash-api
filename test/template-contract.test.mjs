@@ -43,3 +43,19 @@ test('a new file without any filter warns; a new report has nothing to compare w
   assert.equal(fresh.added.length, 1);
   assert.deepEqual(fresh.problems, []);
 });
+
+test('a single-customer report keeps its customer filter even when the file in use cannot be read', () => {
+  const plan = compareTemplates(null, template(filter('קוד מיון', 'from', '300')), '181');
+  assert.equal(plan.blocked, true);
+  assert.match(plan.problems[0].message, /אין סינון לקוח/);
+});
+
+test('every report file in git passes its own rules, so no real report is blocked or warned by mistake', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { parseTemplateText } = await import('../services/reportTemplates.mjs');
+  for (const file of fs.readdirSync(path.resolve('reports')).filter(name => name.endsWith('.txt'))) {
+    const parsed = parseTemplateText(fs.readFileSync(path.resolve('reports', file), 'utf8'));
+    assert.deepEqual(compareTemplates(parsed, parsed, file.slice(0, -4)).problems, [], file);
+  }
+});

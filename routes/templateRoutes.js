@@ -43,7 +43,7 @@ export function createTemplateRouter({
     return by;
   };
   const sendError = (res, error) => {
-    res.status(error.status || 500).json({ error: error.message });
+    res.status(error.status || 500).json({ error: error.message, ...(error.changes ? { changes: error.changes } : {}) });
   };
 
   router.get("/", (req, res) => {
@@ -192,6 +192,13 @@ export function createTemplateRouter({
       const by = requireName(req.body);
       const version = req.body?.version ?? null;
       if (version !== null && typeof version !== "string") throw badRequest("גרסה לא תקינה");
+      // The same rules as a check: a version that would break something is not turned on.
+      if (version !== null && store.versionFile?.(type, version)) {
+        const changes = compareTemplates(readTemplateIfAny(type), parseTemplateText(fs.readFileSync(store.versionFile(type, version), "utf8")), type);
+        if (changes.blocked) {
+          throw Object.assign(new Error(changes.problems.filter(problem => problem.level === "error").map(problem => problem.message).join("; ")), { status: 422, changes });
+        }
+      }
       const previous = store.activeVersion(type);
       store.activate(type, version);
       // A report added by a check gets its name when it is turned on.

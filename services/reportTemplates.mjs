@@ -190,6 +190,13 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
   }
 
   // Switches a report to one of its versions, or back to the git file with null.
+  // The file of one saved version, or null.
+  function versionFile(type, version) {
+    if (!isReportNumber(type) || !VERSION_RE.test(String(version ?? ''))) return null;
+    const file = versionPath(type, version);
+    return fs.existsSync(file) ? file : null;
+  }
+
   function activate(type, version) {
     if (!isReportNumber(type)) throw templateError('מספר דוח לא תקין');
     if (version !== null && !versions(type).includes(version)) throw templateError('הגרסה לא נמצאה');
@@ -301,5 +308,5 @@ export function createTemplateStore({ builtInDir, overrideDir, hrepIds = {}, now
     }));
   }
 
-  return { resolve, activeVersion, versions, saveVersion, activate, setName, hrepId, setHrepId, appendLog, history, list };
+  return { resolve, activeVersion, versions, versionFile, saveVersion, activate, setName, hrepId, setHrepId, appendLog, history, list };
 }

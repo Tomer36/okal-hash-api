@@ -218,4 +218,16 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.match(blocked.body.error, /אין סינון לקוח/);
   assert.equal(blocked.body.changes.removed[0].client, true);
   assert.equal(sent.length, sentBeforeBlocked, 'Hashavshevet was not called for a blocked change');
+
+  // Turning on an older version from the list goes through the same rules: one without the customer
+  // filter (saved before these rules existed) is not turned on.
+  const oldVersion = '2026-01-01T00-00-00-000Z';
+  fs.mkdirSync(path.join(overrideDir, 'versions', '181'), { recursive: true });
+  fs.writeFileSync(path.join(overrideDir, 'versions', '181', `${oldVersion}.txt`), JSON.stringify({ ...gitTemplate('181'), params_data: gitTemplate('181').params_data.filter(param => !(param.type === 'txt' && param.opName === 'שווה')) }));
+  const inUse181 = (await get('/templates/181')).version;
+  const refusedSwitch = await post('/templates/181/activate', { by: 'בודק', version: oldVersion });
+  assert.equal(refusedSwitch.status, 422);
+  assert.match(refusedSwitch.body.error, /אין סינון לקוח/);
+  assert.equal(refusedSwitch.body.changes.blocked, true);
+  assert.equal((await get('/templates/181')).version, inUse181, 'the file in use did not change');
 });

@@ -31,6 +31,10 @@ for (const type of ['175', '198', '226', '227']) {
   REQUIRED[type] = [...(REQUIRED[type] || []), { level: 'warning', type: 'long', name: SORT_CODE_FIELD_NAME, why: 'שדות קוד המיון בעמוד הדוחות לא ישפיעו' }];
 }
 
+// The reports of one customer, by number: their customer filter is protected even when the file in
+// use cannot be read to compare with.
+export const SINGLE_CUSTOMER_REPORTS = new Set(['177', '180', '181', '183', '184', '185', '187', '188', '189']);
+
 // current: the template in use (null for a new report); next: the one about to be checked.
 export function compareTemplates(current, next, type) {
   const before = Array.isArray(current?.params_data) ? current.params_data : [];
@@ -46,7 +50,7 @@ export function compareTemplates(current, next, type) {
     .map(param => ({ filter: describe(param), from: String(beforeByKey.get(filterKey(param))?.defVal ?? ''), to: String(param?.defVal ?? '') }));
 
   const problems = [];
-  if (current && before.some(isClientParam) && !after.some(isClientParam)) {
+  if ((before.some(isClientParam) || SINGLE_CUSTOMER_REPORTS.has(String(type))) && !after.some(isClientParam)) {
     problems.push({ level: 'error', message: 'בקובץ החדש אין סינון לקוח: הדוח של לקוח אחד יחזיר את כל הלקוחות' });
   }
   for (const rule of REQUIRED[String(type)] || []) {

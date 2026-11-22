@@ -27,7 +27,7 @@ const REQUIRED = {
   196: [{ level: 'warning', type: 'long', name: HEADER_NUMBER_FIELD_NAME, why: 'שדות מספר הכותרת בעמוד הדוחות לא ישפיעו' }],
   197: [{ level: 'warning', type: 'long', name: HEADER_NUMBER_FIELD_NAME, why: 'שדות מספר הכותרת בעמוד הדוחות לא ישפיעו' }]
 };
-for (const type of ['175', '198', '226', '227']) {
+for (const type of ['175', '198', '226', '228']) {
   REQUIRED[type] = [...(REQUIRED[type] || []), { level: 'warning', type: 'long', name: SORT_CODE_FIELD_NAME, why: 'שדות קוד המיון בעמוד הדוחות לא ישפיעו' }];
 }
 
@@ -44,7 +44,7 @@ export function requestFieldFor(type, param) {
   if (param?.type === 'date') return 'dates';
   if (param?.type !== 'long') return null;
   if (report === '200' && name.includes(DOCUMENT_NUMBER_FIELD_NAME)) return 'invoiceNumber';
-  if (['175', '198', '226', '227'].includes(report) && name.includes(SORT_CODE_FIELD_NAME)) return 'sortCode';
+  if (['175', '198', '226', '228'].includes(report) && name.includes(SORT_CODE_FIELD_NAME)) return 'sortCode';
   if (report === '198' && param?.opOrigin === 'from' && name.includes(ACCOUNT_CARD_NUMBER_FIELD_NAME)) return 'cardNumber';
   if (['174', '196', '197'].includes(report) && name.includes(HEADER_NUMBER_FIELD_NAME)) return 'headerNumber';
   return null;

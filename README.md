@@ -53,12 +53,14 @@ behind a field on the reports page is gone, or no filters at all) is shown and c
   the fresh hrep output by filter (name, operation and side), so an update keeps them. Dates and
   the customer filter are refused: every run sets them.
 - `names.json` in the same folder holds the names given in Rivo.
-- hrep encrypts by the report's "מזהה" in Hashavshevet's list of API reports (report 186), which
-  for some reports is not the report number: 225 → 227, 227 → 228, 280 → 229, 276 → 230,
-  285 → 231 (`templates.HREP_IDS`). An update may send `hrepId`; a changed one is kept in
-  `hrep-ids.json` in the same folder and used from then on.
+- A report's number is its "מזהה" in Hashavshevet's list of API reports (report 186), the number
+  hrep encrypts it by. The number written in a report's name is only a label: on 2026-11-23 the
+  five reports where they differed moved to their מזהה (225 → 227, 227 → 228, 280 → 229,
+  276 → 230, 285 → 231), in git and, once at start, in the report-templates folder
+  (`services/reportNumberMigration.mjs`, a copy of the folder kept first in the backup folder as
+  `before-report-numbers-<date>`). `hrep-ids.json` can still hold a different number for a report.
 - Settings: `templates.HREP_DIR`, `templates.HREP_COMPANY`, `templates.OVERRIDE_DIR` and
-  `templates.HREP_IDS` in `config/default.json` (`HASH_TEMPLATE_DIR` overrides the folder).
+  `templates.BACKUP_DIR` in `config/default.json` (`HASH_TEMPLATE_DIR` overrides the folder).
 
 To make an updated template the default in git, copy the version file over
 `reports/<number>.txt`, commit it, and switch the report back to the original file after the

@@ -15,8 +15,7 @@
     "HREP_DIR": "C:\\Hash7\\H-Mobile\\H-Mobile-1.2.1\\Hconnect",
     "HREP_COMPANY": "3",
     "OVERRIDE_DIR": "C:\\okal-services\\report-templates",
-    "BACKUP_DIR": "C:\\okal-services\\report-templates-backup",
-    "HREP_IDS": { "225": "227", "227": "228", "280": "229", "276": "230", "285": "231" }
+    "BACKUP_DIR": "C:\\okal-services\\report-templates-backup"
   },
   "configs": {
     "HASH_PORT" : 6001,

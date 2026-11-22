@@ -5,6 +5,7 @@ import reportRoutes from "./routes/reportRoutes.js";
 import templateRoutes from "./routes/templateRoutes.js";
 import { PROVIDER_HOST, RESILIENCE_LIMITS, TEMPLATE_BACKUP_DIR, TEMPLATE_DIR, postStartupLog, templates } from "./services/reportService.js";
 import { createTemplateBackup } from "./services/templateBackup.mjs";
+import { migrateReportNumbers } from "./services/reportNumberMigration.mjs";
 import { readCommit, reportStartup } from "./services/startupReport.mjs";
 import { listenLocal } from "./services/listenLocal.mjs";
 
@@ -18,6 +19,13 @@ const PORT = config.get("configs.HASH_PORT");
 
 app.use("/reports", reportRoutes);
 app.use("/templates", templateRoutes);
+
+// Once: the report-templates folder moves from the number in a report's name to its מזהה.
+try {
+  migrateReportNumbers({ dir: TEMPLATE_DIR, backupDir: TEMPLATE_BACKUP_DIR });
+} catch (error) {
+  console.error(`❌ Moving report numbers to their מזהה failed (a copy of the folder was kept first): ${error.message}`);
+}
 
 listenLocal(app, PORT).then((servers) => {
   const addresses = servers.map((server) => server.address().address).join(", ");

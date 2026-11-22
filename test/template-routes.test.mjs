@@ -168,12 +168,12 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.deepEqual(refreshed.body.params.map(param => [param.id, param.value]), [['n0', '330'], ['n500', '301'], ['n1', '01/01/2020'], ['n2', '']],
     'the edited value went into the fresh hrep output, matched by filter rather than id');
 
-  // hrep encrypts by the report's "מזהה", which differs from the report number for some reports.
-  assert.equal((await get('/templates/280')).hrepId, '229', 'the configured מזהה');
-  assert.equal((await get('/templates/198')).hrepId, '198', 'the report number when they are the same');
-  hrepOutput = JSON.stringify(gitTemplate('280'));
-  assert.equal((await post('/templates/280/update', { by: 'בודק' })).status, 200);
-  assert.equal(hrepCalls.at(-1).report, '229', 'hrep ran with the מזהה, not the report number');
+  // A report's number is its "מזהה" (229 is כרטסת API), so hrep runs with the report's own number.
+  assert.equal((await get('/templates/229')).hrepId, '229');
+  assert.equal((await get('/templates/198')).hrepId, '198');
+  hrepOutput = JSON.stringify(gitTemplate('229'));
+  assert.equal((await post('/templates/229/update', { by: 'בודק' })).status, 200);
+  assert.equal(hrepCalls.at(-1).report, '229', 'hrep ran with the report number, which is its מזהה');
   hrepOutput = JSON.stringify(custom);
   assert.equal((await post('/templates/999/update', { by: 'בודק', clientNumber: '777', hrepId: '231' })).status, 200);
   assert.equal(hrepCalls.at(-1).report, '231');

@@ -179,7 +179,7 @@ function loadReportTemplate(report, input, reportType) {
     }
 
     if (
-      ["175", "198", "226", "227"].includes(reportType) &&
+      ["175", "198", "226", "228"].includes(reportType) &&
       param?.type === "long" &&
       param?.name?.includes(SORT_CODE_FIELD_NAME)
     ) {

@@ -87,11 +87,16 @@ setInterval(logHealthSnapshot, 15 * 60 * 1000).unref?.();
 
 const reportTemplateCache = new Map();
 // Templates updated from the templates page live outside the repository (see reportTemplates.mjs).
+export const TEMPLATE_DIR = process.env.HASH_TEMPLATE_DIR
+  || (config.has("templates.OVERRIDE_DIR") && config.get("templates.OVERRIDE_DIR"))
+  || "C:\\okal-services\\report-templates";
+// Where the daily copy of TEMPLATE_DIR goes (see templateBackup.mjs); best on another disk.
+export const TEMPLATE_BACKUP_DIR = process.env.HASH_TEMPLATE_BACKUP_DIR
+  || (config.has("templates.BACKUP_DIR") && config.get("templates.BACKUP_DIR"))
+  || "C:\\okal-services\\report-templates-backup";
 export const templates = createTemplateStore({
   builtInDir: path.resolve("reports"),
-  overrideDir: process.env.HASH_TEMPLATE_DIR
-    || (config.has("templates.OVERRIDE_DIR") && config.get("templates.OVERRIDE_DIR"))
-    || "C:\\okal-services\\report-templates",
+  overrideDir: TEMPLATE_DIR,
   hrepIds: config.has("templates.HREP_IDS") ? config.get("templates.HREP_IDS") : {}
 });
 export const HREP_SETTINGS = {

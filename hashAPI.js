@@ -3,7 +3,8 @@ import bodyParser from "body-parser";
 import config from "config";
 import reportRoutes from "./routes/reportRoutes.js";
 import templateRoutes from "./routes/templateRoutes.js";
-import { PROVIDER_HOST, RESILIENCE_LIMITS, postStartupLog } from "./services/reportService.js";
+import { PROVIDER_HOST, RESILIENCE_LIMITS, TEMPLATE_BACKUP_DIR, TEMPLATE_DIR, postStartupLog } from "./services/reportService.js";
+import { createTemplateBackup } from "./services/templateBackup.mjs";
 import { readCommit, reportStartup } from "./services/startupReport.mjs";
 import { listenLocal } from "./services/listenLocal.mjs";
 
@@ -23,6 +24,8 @@ listenLocal(app, PORT).then((servers) => {
   console.log(`✅ Hash microservice running on port ${PORT} (${addresses} only), Hashavshevet server: ${PROVIDER_HOST}`);
   console.log(`Upstream limits: ${JSON.stringify(RESILIENCE_LIMITS)}`);
   reportStartup({ post: postStartupLog, details: { provider: PROVIDER_HOST, limits: RESILIENCE_LIMITS, version: readCommit() } });
+  // The report-templates folder is outside git: copied at start and then daily.
+  createTemplateBackup({ sourceDir: TEMPLATE_DIR, backupDir: TEMPLATE_BACKUP_DIR }).start();
 }).catch((error) => {
   console.error(`❌ ${error.message}`);
   process.exit(1);

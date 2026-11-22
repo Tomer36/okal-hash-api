@@ -13,11 +13,19 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, so a changed report file can be compared with its previous version.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
+      # A report file changed directly in git goes through the same rules as a change from Rivo.
+      - name: Check changed report files
+        run: node scripts/check-template-changes.mjs
+        env:
+          BASE_SHA: ${{ github.event.before }}
       - run: npm test
 
   # Runs on the production server itself (a self-hosted runner registered to this repository),

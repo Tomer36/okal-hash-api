@@ -54,8 +54,19 @@ To make an updated template the default in git, copy the version file over
 `reports/<number>.txt`, commit it, and switch the report back to the original file after the
 deploy.
 
+## Backup of the report-templates folder
+
+The folder above is outside git, so the service copies it at start and then daily to
+`templates.BACKUP_DIR` (`C:\okal-services\report-templates-backup`, or `HASH_TEMPLATE_BACKUP_DIR`),
+one folder per day, the newest 14 days kept. Point it at another disk or a network share, so one
+lost disk does not take both. To restore: stop the `okal-hash-api` service, copy the chosen day's
+folder over `C:\okal-services\report-templates`, start the service.
+
 ## Deploy
 
-Every push runs the tests. A push to the `production` branch also deploys to the server:
-the self-hosted runner updates the code, restarts the `okal-hash-api` service and checks
+Every push runs the tests. Before them, `scripts/check-template-changes.mjs` checks every
+`reports/<n>.txt` changed in the push with the same rules as a change from Rivo (readable file,
+then the plan against the previous version of the file): a change that would break something
+fails the run, so it is not deployed. A push to the `production` branch also deploys to the
+server: the self-hosted runner updates the code, restarts the `okal-hash-api` service and checks
 that the gateway is listening.

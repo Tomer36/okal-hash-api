@@ -14,6 +14,14 @@ const PREVIEW_ROWS = 20;
 
 const badRequest = message => Object.assign(new Error(message), { status: 400 });
 
+// The date range written in a template's own date filters, as a request would send it.
+const fileDateRange = template => {
+  const dates = (template?.params_data || []).filter(param => param?.type === "date" && param?.defVal);
+  const from = dates.find(param => param.opOrigin === "from")?.defVal;
+  const to = dates.find(param => param.opOrigin === "to")?.defVal;
+  return { ...(from ? { dateFrom: String(from) } : {}), ...(to ? { dateTo: String(to) } : {}) };
+};
+
 export function createTemplateRouter({
   store = templates,
   runHrep = defaultRunHrep,
@@ -137,7 +145,10 @@ export function createTemplateRouter({
         throw badRequest("הדוח הזה הוא של לקוח אחד: נא למלא מספר לקוח לבדיקה");
       }
       stage = "test";
-      const data = await runReport(type, { clientNumber }, {
+      // Every run sets the date filters from the request, or to today without one; a check runs
+      // with the file's own date range, or a report filtered by dates (198: accounts opened
+      // 2020-2194) would be checked for today only and come back empty.
+      const data = await runReport(type, { clientNumber, ...fileDateRange(template) }, {
         priority: "background",
         template,
         deadline: Date.now() + TEST_DEADLINE_MS

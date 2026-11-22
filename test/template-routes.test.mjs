@@ -187,6 +187,8 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.equal(checked.status, 200, JSON.stringify(checked.body));
   assert.equal(checked.body.activated, false);
   assert.deepEqual(checked.body.preview, [{ a: '1' }, { a: '2' }], 'the rows the test returned');
+  const testedDates = sentParams.at(-1).filter(param => param.type === 'date').map(param => param.defVal);
+  assert.deepEqual(testedDates, ['01/01/2020', '12/31/2194'], 'the check runs with the dates of the file, not today (198 would come back empty)');
   const afterCheck = await get('/templates/198');
   assert.equal(afterCheck.version, inUseBefore, 'the file in use did not change');
   assert.ok(afterCheck.versions.includes(checked.body.version), 'the checked file is kept as a version');

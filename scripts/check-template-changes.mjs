@@ -5,7 +5,8 @@
 import { execFileSync } from 'node:child_process';
 import { checkTemplateChanges } from '../services/templateChanges.mjs';
 
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+// Quiet: a file that is new or removed in this push is simply not in one of the two commits.
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
 const exists = (ref) => {
   try {
     git('cat-file', '-e', `${ref}^{commit}`);

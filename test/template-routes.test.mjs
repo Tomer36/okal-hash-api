@@ -207,6 +207,27 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.equal((await post('/templates/998/activate', { by: 'בודק', version: newCheck.body.version, name: 'נבדק' })).status, 200);
   assert.equal((await get('/templates')).reports.find(item => item.type === '998').name, 'נבדק');
 
+  // A new report: its filters are read from hrep first (nothing saved or tested), filled on the
+  // page, and the check takes those values by the ids hrep gave.
+  hrepOutput = JSON.stringify(custom);
+  const sentBeforeRead = sent.length;
+  const read = await post('/templates/997/read', { by: 'בודק', hrepId: '230' });
+  assert.equal(read.status, 200, JSON.stringify(read.body));
+  assert.equal(hrepCalls.at(-1).report, '230');
+  assert.equal(read.body.exists, false);
+  assert.deepEqual(read.body.params.map(param => [param.id, param.value, param.filledBy]),
+    [['0', '300', null], ['500', '301', null], ['1', '01/01/2020', 'dates'], ['2', '', 'client']]);
+  assert.equal(sent.length, sentBeforeRead, 'reading the filters does not call Hashavshevet');
+  assert.equal((await get('/templates')).reports.some(item => item.type === '997'), false, 'nothing is saved by a read');
+  assert.equal((await post('/templates/997/read', { by: 'בודק', hrepId: '2x' })).status, 400);
+  assert.equal((await post('/templates/997/read', {})).status, 400, 'a name is required');
+  const filledCheck = await post('/templates/997/update', { by: 'בודק', clientNumber: '777', hrepId: '230', values: { 0: '310', 500: '320' }, activate: false });
+  assert.equal(filledCheck.status, 200, JSON.stringify(filledCheck.body));
+  assert.deepEqual(filledCheck.body.params.map(param => param.value), ['310', '320', '01/01/2020', '']);
+  const testedNew = Object.fromEntries(sentParams.at(-1).map(param => [param.id, param.defVal]));
+  assert.deepEqual([testedNew[0], testedNew[500]], ['310', '320'], 'the check ran with the filled values');
+  assert.equal((await post('/templates/996/update', { by: 'בודק', clientNumber: '777', values: { 9: '1' } })).status, 422, 'an unknown filter is refused');
+
   // The plan: a check says how the filters change; a change that would break something is refused
   // before Hashavshevet is called, and the file in use stays.
   hrepOutput = JSON.stringify({ ...custom, params_data: custom.params_data.map(param => (param.id === '500' ? { ...param, defVal: '305' } : param)) });

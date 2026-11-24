@@ -186,14 +186,51 @@ export function createTemplateRouter({
     }
   };
 
-  // A fresh template from hrep. Filter values changed on the page (by the ids of the file in use)
-  // go into it before the test, so what is tested is what will be used.
+  // A new report's filters, read from hrep before anything is checked, so their values can be
+  // filled first. Nothing is saved or tested; the check (update) runs hrep again with those values.
+  router.post("/:type/read", async (req, res) => {
+    let type;
+    let hrepId;
+    try {
+      type = requireType(req.params.type);
+      requireName(req.body);
+      hrepId = String(req.body?.hrepId ?? "").trim() || store.hrepId(type);
+      if (!isReportNumber(hrepId)) throw badRequest("מזהה להצפנה לא תקין");
+    } catch (error) {
+      sendError(res, error);
+      return;
+    }
+    if (updating) {
+      res.status(409).json({ error: `עדכון של דוח ${updating} רץ כרגע, נסה שוב בעוד דקה` });
+      return;
+    }
+    updating = type;
+    try {
+      const template = parseTemplateText(await runHrep({ ...hrep, report: hrepId }));
+      res.json({
+        type,
+        hrepId,
+        exists: Boolean(store.resolve(type)),
+        params: summarizeParams(template).map((param, index) => ({ ...param, filledBy: requestFieldFor(type, template.params_data[index]) }))
+      });
+    } catch (error) {
+      res.status(error.status && error.status < 500 ? error.status : 502).json({ error: error.message, stage: "hrep" });
+    } finally {
+      updating = null;
+    }
+  });
+
+  // A fresh template from hrep. Filter values changed on the page go into it before the test, so
+  // what is tested is what will be used: by the ids of the file in use, or, for a report with no
+  // file yet, by the ids of hrep's own output (read first with /read).
   router.post("/:type/update", testAndSave("update", async (type, body, setStage, hrepId) => {
     const values = body?.values || {};
-    const current = Object.keys(values).length ? readCurrentTemplate(type) : null;
+    const hasValues = Object.keys(values).length > 0;
+    const current = hasValues && store.resolve(type) ? readCurrentTemplate(type) : null;
     const template = parseTemplateText(await runHrep({ ...hrep, report: hrepId }));
-    if (!current) return template;
+    if (!hasValues) return template;
     setStage("values");
+    if (!current) return applyFilterValues(template, values);
     // The values shown on the page go into the fresh output; a filter Hashavshevet no longer has is left out.
     return applyFilterValues(template, values, current, { ignoreMissing: true });
   }));

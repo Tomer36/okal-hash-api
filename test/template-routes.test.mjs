@@ -168,6 +168,22 @@ test('templates page: update tests against Hashavshevet before use, and versions
   assert.deepEqual(refreshed.body.params.map(param => [param.id, param.value]), [['n0', '330'], ['n500', '301'], ['n1', '01/01/2020'], ['n2', '']],
     'the edited value went into the fresh hrep output, matched by filter rather than id');
 
+  // Read first (an existing report): hrep's filters now, with a filter added in Hashavshevet, and
+  // the values filled by hrep's own ids go into the fresh output.
+  const withNew = { ...custom, encrypt_reportData: 'custom-3', params_data: [...custom.params_data.map(param => ({ ...param, id: `h${param.id}` })),
+    { p_name: '__MUSTACH_P4__', id: '9', type: 'long', name: 'שדה/מחסן', defVal: '1', opName: 'שווה', opOrigin: '' }] };
+  hrepOutput = JSON.stringify(withNew);
+  const readExisting = await post('/templates/999/read', { by: 'בודק' });
+  assert.equal(readExisting.status, 200, JSON.stringify(readExisting.body));
+  assert.equal(readExisting.body.exists, true);
+  assert.deepEqual(readExisting.body.params.map(param => [param.id, param.name]).slice(-1), [['9', 'שדה/מחסן']]);
+  const byHrep = await post('/templates/999/update', { by: 'בודק', clientNumber: '777', valuesFrom: 'hrep', values: { h0: '340', 9: '4' } });
+  assert.equal(byHrep.status, 200, JSON.stringify(byHrep.body));
+  assert.deepEqual(byHrep.body.params.map(param => [param.id, param.value]).filter(([id]) => ['h0', '9'].includes(id)), [['h0', '340'], ['9', '4']],
+    'values by hrep\'s ids, the added filter included');
+  assert.equal((await post('/templates/999/update', { by: 'בודק', clientNumber: '777', valuesFrom: 'hrep', values: { n0: '1' } })).status, 422,
+    'an id that is not in hrep\'s output is refused, not guessed');
+
   // A report's number is its "מזהה" (229 is כרטסת API), so hrep runs with the report's own number.
   assert.equal((await get('/templates/229')).hrepId, '229');
   assert.equal((await get('/templates/198')).hrepId, '198');

@@ -59,6 +59,7 @@ export function summarizeParams(template) {
   return (template?.params_data || []).map(param => ({
     id: String(param?.id ?? ''),
     type: param?.type ?? '',
+    name: String(param?.name ?? ''),
     field: String(param?.name ?? '').split('/').pop().trim(),
     op: param?.opName ?? '',
     origin: param?.opOrigin ?? '',

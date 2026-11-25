@@ -186,8 +186,8 @@ export function createTemplateRouter({
     }
   };
 
-  // A new report's filters, read from hrep before anything is checked, so their values can be
-  // filled first. Nothing is saved or tested; the check (update) runs hrep again with those values.
+  // A report's filters as hrep gives them now, read before anything is checked, so their values can
+  // be filled first (a new report, or an update of one in use). Nothing is saved or tested; the check (update) runs hrep again with those values.
   router.post("/:type/read", async (req, res) => {
     let type;
     let hrepId;
@@ -221,12 +221,14 @@ export function createTemplateRouter({
   });
 
   // A fresh template from hrep. Filter values changed on the page go into it before the test, so
-  // what is tested is what will be used: by the ids of the file in use, or, for a report with no
-  // file yet, by the ids of hrep's own output (read first with /read).
+  // what is tested is what will be used: by the ids of hrep's own output when the page read its
+  // filters first with /read (valuesFrom: "hrep", and always for a report with no file yet), else by
+  // the ids of the file in use.
   router.post("/:type/update", testAndSave("update", async (type, body, setStage, hrepId) => {
     const values = body?.values || {};
     const hasValues = Object.keys(values).length > 0;
-    const current = hasValues && store.resolve(type) ? readCurrentTemplate(type) : null;
+    const fromHrep = body?.valuesFrom === "hrep";
+    const current = hasValues && !fromHrep && store.resolve(type) ? readCurrentTemplate(type) : null;
     const template = parseTemplateText(await runHrep({ ...hrep, report: hrepId }));
     if (!hasValues) return template;
     setStage("values");
